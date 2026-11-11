@@ -46,13 +46,16 @@ def auth() -> None:
     print("Open this URL, approve, then paste the FULL URL you were redirected to:\n\n" + url + "\n")
     redirected = input("Redirected URL: ").strip()
     q = urllib.parse.parse_qs(urllib.parse.urlparse(redirected).query)
+    if "error" in q:
+        raise SystemExit(f"TikTok refused the login: {q['error'][0]} - {q.get('error_description', [''])[0]}")
+    if "code" not in q:
+        raise SystemExit("That URL has no ?code=... in it. Copy the whole URL from the box on the callback page.")
     if q.get("state", [""])[0] != state:
         raise SystemExit("State mismatch. Try again.")
     r = requests.post(f"{API}/oauth/token/", data={
         "client_key": _env("TIKTOK_CLIENT_KEY"), "client_secret": _env("TIKTOK_CLIENT_SECRET"),
         "code": q["code"][0], "grant_type": "authorization_code", "redirect_uri": _env("TIKTOK_REDIRECT_URI"),
     }, timeout=30)
-    r.raise_for_status()
     tok = r.json()
     if "access_token" not in tok:
         raise SystemExit(f"TikTok login failed: {tok}")
