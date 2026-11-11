@@ -152,7 +152,7 @@ def render_clip(source: Path, start: float, end: float, words: list[dict], creat
         render_ffmpeg(), "-v", "error", "-stats", "-y", *inputs,
         "-filter_complex", graph, "-map", "[v]", "-map", "0:a?",
         "-t", f"{dur:.3f}", "-c:v", "libx264", "-preset", "medium", "-crf", str(cfg.get("crf", 20)),
-        "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", str(out),
+        "-pix_fmt", "yuv420p", "-af", "loudnorm=I=-14:TP=-1.5:LRA=11", "-ar", "48000", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", str(out),
     ]
     subprocess.run(cmd, check=True, cwd=out_dir)
     return out
