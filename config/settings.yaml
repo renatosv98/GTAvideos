@@ -29,7 +29,7 @@ analysis:
   frames_per_candidate: 2   # still frames sent to Claude per candidate (0 = text only)
 
 render:
-  layout: stack             # stack = gameplay top + your content bottom; blur = gameplay over blurred background
+  layout: blur             # stack = gameplay top + your content bottom; blur = gameplay over blurred background
   width: 1080
   height: 1920
   top_height: 1080          # stack layout: height of the gameplay panel

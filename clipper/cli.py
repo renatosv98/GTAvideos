@@ -83,13 +83,23 @@ def main(argv: list[str] | None = None) -> int:
 
     a = p.parse_args(argv)
 
+    if a.cmd in ("process", "check") and not a.url.startswith(("http://", "https://")):
+        print(f"⛔ '{a.url}' is not a link. Paste the full URL of a stream recording, e.g.\n"
+              "   clipper process \"https://www.twitch.tv/videos/1234567890\"")
+        return 2
+
     if a.cmd == "process":
+        from yt_dlp.utils import DownloadError
+
         from .config import PermissionError_
         from .pipeline import process
         try:
             ids = process(a.url, a.creator)
         except PermissionError_ as e:
             print(f"⛔ {e}")
+            return 2
+        except DownloadError as e:
+            print(f"⛔ Couldn't read that link: {e}")
             return 2
         print(f"\nDone: {len(ids)} clips. Review them with: clipper review")
     elif a.cmd == "check":
