@@ -131,6 +131,10 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("url")
     s.add_argument("--at", type=float, default=1800, help="seconds into the stream (default 1800)")
 
+    s = sub.add_parser("publish-now", help="upload one approved clip immediately (skips its slot)")
+    s.add_argument("id", type=int)
+    s.add_argument("--platform", choices=["tiktok", "youtube"], default="tiktok")
+
     sub.add_parser("status", help="queue and schedule overview")
     sub.add_parser("doctor", help="check setup")
 
@@ -173,6 +177,9 @@ def main(argv: list[str] | None = None) -> int:
     elif a.cmd == "publish-due":
         from .scheduler import publish_due
         publish_due(a.dry_run)
+    elif a.cmd == "publish-now":
+        from .scheduler import publish_now
+        return publish_now(a.id, a.platform)
     elif a.cmd == "rerender":
         return _rerender(a.ids)
     elif a.cmd == "frame":

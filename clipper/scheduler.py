@@ -71,6 +71,38 @@ def _description(clip, creator) -> str:
     return "\n".join(parts).strip()
 
 
+def publish_now(clip_id: int, platform: str) -> int:
+    creators = {c.id: c for c in load_creators()}
+    with db.connect() as conn:
+        clip = conn.execute(
+            "SELECT clips.*, streams.creator_id FROM clips JOIN streams ON streams.id = clips.stream_id WHERE clips.id=?",
+            (clip_id,)).fetchone()
+    if not clip or clip["status"] not in ("approved", "published"):
+        print(f"⛔ Clip #{clip_id} must be approved in `clipper review` first.")
+        return 2
+    creator = creators.get(clip["creator_id"])
+    if not creator or not creator.permitted:
+        print(f"⛔ Creator '{clip['creator_id']}' is not permitted.")
+        return 2
+    print(f"#{clip_id} -> {platform} now")
+    try:
+        if platform == "tiktok":
+            from .uploaders import tiktok
+            rid = tiktok.upload(Path(clip["path"]), f"{clip['title']} {clip['hashtags'] or ''}".strip())
+            url = None
+        else:
+            from .uploaders import youtube
+            rid = youtube.upload(Path(clip["path"]), clip["title"], _description(clip, creator), None)
+            url = f"https://youtube.com/shorts/{rid}"
+    except Exception as e:
+        print(f"❌ {e}")
+        return 1
+    with db.connect() as conn:
+        _record(conn, clip_id, platform, "published", rid, url)
+    print(f"✅ Sent ({rid}). " + ("Check your TikTok inbox/drafts." if platform == "tiktok" else url))
+    return 0
+
+
 def publish_due(dry_run: bool = False) -> None:
     now = datetime.now(UTC)
     plat = SETTINGS["platforms"]
