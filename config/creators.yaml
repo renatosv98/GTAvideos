@@ -32,6 +32,8 @@ creators:
     display_name: "Rubius"
     credit: "Rubius (twitch.tv/rubius)"
     language: Spanish
+    # Measured on his 2026-11-10 stream (gameplay scene: cam bottom-left). Re-measure on a GTA 6 stream if it moves.
+    facecam: {x: 0.003, y: 0.592, w: 0.222, h: 0.270}
     match:
       - "twitch.tv/rubius"
       - "rubius"
@@ -47,8 +49,9 @@ creators:
     display_name: "xQc"
     credit: "xQc (kick.com/xqc)"
     language: English
-    # No facecam position yet: clips use the blur layout until it's measured from a GTA 6 stream
-    # (`clipper frame <stream-url>`).
+    # Measured on his 2026-11-09 GTA V stream (cam middle-left, chat below it). Re-measure if it moves:
+    # `clipper frame <stream-url>`.
+    facecam: {x: 0.003, y: 0.305, w: 0.186, h: 0.258}
     match:
       - "twitch.tv/xqc"
       - "kick.com/xqc"
