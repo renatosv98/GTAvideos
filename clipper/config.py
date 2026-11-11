@@ -31,6 +31,7 @@ class Creator:
     match: list[str]
     permission: dict[str, Any]
     links: dict[str, Any]
+    language: str = "English"
 
     @property
     def permitted(self) -> bool:
@@ -48,6 +49,7 @@ def load_creators() -> list[Creator]:
             match=[m.lower() for m in c.get("match", [])],
             permission=c.get("permission", {}) or {},
             links=c.get("links", {}) or {},
+            language=c.get("language", "English"),
         )
         for c in raw
     ]

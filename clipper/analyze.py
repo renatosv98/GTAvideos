@@ -67,6 +67,8 @@ def analyze(video: Path, title: str, creator: Creator, candidates: list[Candidat
     content: list[dict[str, Any]] = [{
         "type": "text",
         "text": f"Stream: \"{title}\" by {creator.display_name}.\n"
+                f"Write title, caption and hashtags in {creator.language} (the language of the stream); "
+                f"keep 'GTA 6' / '#GTA6' as is.\n"
                 f"Return up to {cfg['max_clips']} picks, best first, each {cfg['min_seconds']}-{cfg['max_seconds']} seconds long.",
     }]
     words_by_id: dict[int, list[dict]] = {}

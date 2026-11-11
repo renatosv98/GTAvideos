@@ -10,7 +10,9 @@ highlights:
   window_before: 45         # seconds of context before a peak
   window_after: 30
   chat_weight: 0.6          # weighting of chat spikes vs audio spikes
-  hype_words: ["lol", "lmao", "lmfao", "omg", "w", "kekw", "clip", "no way", "bro", "😂", "💀", "pog", "insane"]
+  hype_words: ["lol", "lmao", "lmfao", "omg", "w", "kekw", "clip", "no way", "bro", "😂", "💀", "pog", "insane",
+               "jaja", "jajaja", "xd", "xdd", "madre mia", "madre mía", "no puede ser", "illo", "que crack", "qué crack",
+               "buah", "brutal", "clipeen", "clipazo", "omegalul"]
 
 transcription:
   model: small              # tiny | base | small | medium | large-v3
