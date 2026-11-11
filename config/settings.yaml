@@ -56,5 +56,6 @@ platforms:
     made_for_kids: false
   tiktok:
     enabled: true
-    mode: direct            # direct = publish (needs audited app); inbox = sends to your TikTok drafts
+    username: gtauploads5   # posting is refused if the authorised TikTok account is different
+    mode: inbox             # inbox = sends to your TikTok drafts (works before audit); direct = publish (needs audited app)
     privacy_level: PUBLIC_TO_EVERYONE

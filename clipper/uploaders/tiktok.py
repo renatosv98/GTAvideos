@@ -38,7 +38,7 @@ def _save(tok: dict) -> None:
 
 def auth() -> None:
     state = pysecrets.token_urlsafe(16)
-    scope = "video.publish,video.upload"
+    scope = "user.info.basic,user.info.profile,video.publish,video.upload"
     url = "https://www.tiktok.com/v2/auth/authorize/?" + urllib.parse.urlencode({
         "client_key": _env("TIKTOK_CLIENT_KEY"), "scope": scope, "response_type": "code",
         "redirect_uri": _env("TIKTOK_REDIRECT_URI"), "state": state,
@@ -53,8 +53,24 @@ def auth() -> None:
         "code": q["code"][0], "grant_type": "authorization_code", "redirect_uri": _env("TIKTOK_REDIRECT_URI"),
     }, timeout=30)
     r.raise_for_status()
-    _save(r.json())
-    print(f"Saved {TOKEN}")
+    tok = r.json()
+    if "access_token" not in tok:
+        raise SystemExit(f"TikTok login failed: {tok}")
+    username = _username(tok["access_token"])
+    expected = SETTINGS["platforms"]["tiktok"].get("username")
+    if expected and username.lower() != expected.lower():
+        raise SystemExit(f"⛔ You logged in as @{username}, not @{expected}. Log out in the browser and run again.")
+    _save(tok)
+    print(f"✅ Authorised as @{username}. Saved {TOKEN}")
+
+
+def _username(token: str) -> str:
+    r = requests.get(f"{API}/user/info/", params={"fields": "open_id,username,display_name"},
+                     headers={"Authorization": f"Bearer {token}"}, timeout=30)
+    data = r.json()
+    if data.get("error", {}).get("code", "ok") != "ok":
+        raise RuntimeError(f"TikTok user info: {data.get('error')}")
+    return data["data"]["user"].get("username", "")
 
 
 def _token() -> str:
@@ -85,6 +101,9 @@ def _post(path: str, token: str, body: dict) -> dict:
 def upload(path: Path, title: str) -> str:
     cfg = SETTINGS["platforms"]["tiktok"]
     token = _token()
+    expected = cfg.get("username")
+    if expected and (u := _username(token)).lower() != expected.lower():
+        raise RuntimeError(f"Authorised TikTok account is @{u}, expected @{expected}. Run `clipper auth tiktok`.")
     size = path.stat().st_size
     source = {"source": "FILE_UPLOAD", "video_size": size, "chunk_size": size, "total_chunk_count": 1}
 
