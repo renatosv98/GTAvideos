@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -9,6 +10,11 @@ from dotenv import load_dotenv
 
 ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(ROOT / ".env")
+
+# Homebrew's bin dirs aren't on PATH in every shell/launchd context; ffmpeg lives there.
+for _p in ("/opt/homebrew/bin", "/usr/local/bin"):
+    if Path(_p).is_dir() and _p not in os.environ.get("PATH", "").split(os.pathsep):
+        os.environ["PATH"] = _p + os.pathsep + os.environ.get("PATH", "")
 
 
 def _load(name: str) -> dict[str, Any]:
