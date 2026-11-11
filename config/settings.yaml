@@ -55,7 +55,7 @@ platforms:
     default_tags: ["GTA6", "GTA 6", "Grand Theft Auto VI", "Shorts"]
     made_for_kids: false
   tiktok:
-    enabled: true
+    enabled: false   # on hold until TikTok approves the app
     username: gtauploads5   # posting is refused if the authorised TikTok account is different
     mode: inbox             # inbox = sends to your TikTok drafts (works before audit); direct = publish (needs audited app)
     privacy_level: PUBLIC_TO_EVERYONE
