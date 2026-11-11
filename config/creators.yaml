@@ -43,17 +43,19 @@ creators:
     links:
       description: "Directo completo: https://twitch.tv/rubius"
 
-  # English-speaking creator: fill in and set granted: true once you've confirmed permission.
-  - id: english_creator
-    display_name: "TBD"
-    credit: "TBD (twitch.tv/tbd)"
+  - id: xqc
+    display_name: "xQc"
+    credit: "xQc (kick.com/xqc)"
     language: English
+    # No facecam position yet: clips use the blur layout until it's measured from a GTA 6 stream
+    # (`clipper frame <stream-url>`).
     match:
-      - "twitch.tv/tbd"
+      - "twitch.tv/xqc"
+      - "kick.com/xqc"
     permission:
-      granted: false
-      source: ""
-      evidence: ""
+      granted: true
+      source: "Publicly allows clipping/reuploading of his streams (added by channel owner, 2026-11-11)"
+      evidence: ""      # TODO: paste a link to his statement allowing clips
       terms: ""
     links:
-      description: "Full stream: https://twitch.tv/tbd"
+      description: "Full stream: https://kick.com/xqc"
