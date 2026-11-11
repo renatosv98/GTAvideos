@@ -207,7 +207,7 @@ def render_clip(source: Path, start: float, end: float, words: list[dict], creat
     if music:  # quiet background track that ducks further whenever the streamer talks
         mi = inputs.count("-i")
         inputs += ["-stream_loop", "-1", "-i", str(Path(music).resolve())]
-        lufs = cfg.get("music_lufs", -22)
+        lufs = cfg.get("music_lufs", -19)
         pre += (f"[{mi}:a]loudnorm=I={lufs}:TP=-8:LRA=11,aresample=48000,{fmt},atrim=0:{dur:.3f},afade=t=in:d=0.6,"
                 f"afade=t=out:st={max(0.0, dur - 1.5):.3f}:d=1.5[m0];"
                 f"[m0][sc]sidechaincompress=threshold=0.05:ratio=2.5:attack=30:release=500[mduck];"

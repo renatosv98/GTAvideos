@@ -47,7 +47,7 @@ render:
   crop_center_x: 0.5        # 0..1, horizontal crop focus of the 16:9 source
   bottom_dir: assets/bottom # YOUR OWN videos (own gameplay, reactions, licensed b-roll)
   captions: true
-  music_lufs: -22           # background music loudness (voice is -14; lower = quieter); ducks further under speech
+  music_lufs: -19           # background music loudness (voice is -14; lower = quieter); ducks further under speech
   caption_words_per_line: 3
   font: "Arial Black"
   crf: 20
