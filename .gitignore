@@ -12,3 +12,4 @@ assets/bottom/*
 
 # never commit credentials
 *recovery-codes*
+assets/music/*.mp3

@@ -123,7 +123,7 @@ def remap_words(words: list[dict], segs: list[tuple[float, float]]) -> list[dict
 
 
 def render_clip(source: Path, start: float, end: float, words: list[dict], creator: Creator, out_dir: Path,
-                cuts: list | None = None, hook: str | None = None) -> Path:
+                cuts: list | None = None, hook: str | None = None, music: Path | None = None) -> Path:
     cfg = SETTINGS["render"]
     W, H = cfg["width"], cfg["height"]
     segs = plan_segments(start, end, cuts)
@@ -142,7 +142,11 @@ def render_clip(source: Path, start: float, end: float, words: list[dict], creat
         pre += (f"[sv{i}]trim=start={a - start:.3f}:end={b - start:.3f},setpts=PTS-STARTPTS[v{i}];"
                 f"[sa{i}]atrim=start={a - start:.3f}:end={b - start:.3f},asetpts=PTS-STARTPTS[a{i}];")
     pre += "".join(f"[v{i}][a{i}]" for i in range(n)) + f"concat=n={n}:v=1:a=1[src][aud0];"
-    pre += "[aud0]loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000[aud];"
+    fmt = "aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo"
+    if music:
+        pre += f"[aud0]loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000,{fmt},asplit=2[voice][sc];"
+    else:
+        pre += f"[aud0]loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000,{fmt}[aud];"
 
     font = _font()
     fontopt = f"fontfile='{font}':" if font else ""
@@ -200,6 +204,14 @@ def render_clip(source: Path, start: float, end: float, words: list[dict], creat
         graph += (f";[{last}]drawtext={fontopt}textfile=hook.txt:fontsize=64:fontcolor=black:line_spacing=10:"
                   f"box=1:boxcolor=white:boxborderw=22:x=(w-text_w)/2:y={hook_y}:enable='lt(t,3.5)'[hk]")
         last = "hk"
+    if music:  # quiet background track that ducks further whenever the streamer talks
+        mi = inputs.count("-i")
+        inputs += ["-stream_loop", "-1", "-i", str(Path(music).resolve())]
+        lufs = cfg.get("music_lufs", -29)
+        pre += (f"[{mi}:a]loudnorm=I={lufs}:TP=-8:LRA=11,aresample=48000,{fmt},atrim=0:{dur:.3f},afade=t=in:d=0.6,"
+                f"afade=t=out:st={max(0.0, dur - 1.5):.3f}:d=1.5[m0];"
+                f"[m0][sc]sidechaincompress=threshold=0.03:ratio=5:attack=20:release=400[mduck];"
+                f"[voice][mduck]amix=inputs=2:duration=first:normalize=0,alimiter=limit=0.89[aud];")
     graph = pre + graph + f";[{last}]{credit}[v]"
 
     cmd = [

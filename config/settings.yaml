@@ -14,15 +14,25 @@ highlights:
                "jaja", "jajaja", "xd", "xdd", "madre mia", "madre mía", "no puede ser", "illo", "que crack", "qué crack",
                "buah", "brutal", "clipeen", "clipazo", "omegalul"]
 
-transcription:
-  model: small              # tiny | base | small | medium | large-v3
-  device: auto              # auto | cpu | cuda
-  compute_type: int8
-  language: null            # null = auto-detect
-
-analysis:
+llm:
+  backend: claude_code      # claude_code = your Claude subscription (no API credits) | api = ANTHROPIC_API_KEY credits
   model: claude-opus-5-5
-  effort: medium
+  effort: high
+  claude_path: null         # null = find Claude Code automatically (PATH or the VS Code extension)
+  retries: 3
+  retry_wait_seconds: 120   # waits longer each retry (e.g. when the plan's usage limit is hit)
+  timeout_seconds: 1800
+
+transcription:              # agent 1: whole stream, cached per chunk
+  engine: mlx               # mlx = fast on Apple Silicon (M1-M4) | faster-whisper = CPU fallback
+  mlx_model: mlx-community/whisper-large-v3-turbo
+  chunk_seconds: 600
+  model: small              # faster-whisper only: tiny | base | small | medium | large-v3
+  device: auto
+  compute_type: int8
+
+analysis:                   # agent 2
+  shortlist: 16             # moments the scout passes to the editor
   max_clips: 8              # clips kept per stream
   min_seconds: 15
   max_seconds: 45
@@ -37,6 +47,7 @@ render:
   crop_center_x: 0.5        # 0..1, horizontal crop focus of the 16:9 source
   bottom_dir: assets/bottom # YOUR OWN videos (own gameplay, reactions, licensed b-roll)
   captions: true
+  music_lufs: -29           # background music loudness (voice is -14; lower = quieter); ducks further under speech
   caption_words_per_line: 3
   font: "Arial Black"
   crf: 20

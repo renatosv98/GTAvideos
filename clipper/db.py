@@ -39,6 +39,15 @@ CREATE TABLE IF NOT EXISTS clips (
     slot_at TEXT,                            -- ISO UTC publish slot
     created_at TEXT DEFAULT (datetime('now'))
 );
+CREATE TABLE IF NOT EXISTS agent_feedback (
+    id INTEGER PRIMARY KEY,
+    from_agent TEXT NOT NULL,                -- producer | analyst | reviewer (you) | publisher
+    to_agent TEXT NOT NULL,                  -- selector | producer
+    clip_id INTEGER,
+    kind TEXT,                               -- e.g. qa_fail, reject, performance
+    message TEXT NOT NULL,
+    created_at TEXT DEFAULT (datetime('now'))
+);
 CREATE TABLE IF NOT EXISTS uploads (
     id INTEGER PRIMARY KEY,
     clip_id INTEGER NOT NULL REFERENCES clips(id),

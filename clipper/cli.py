@@ -58,24 +58,20 @@ def _status() -> int:
 
 
 def _rerender(ids: list[int]) -> int:
-    import json
     from pathlib import Path
 
-    from .config import DATA, load_creators
-    from .render import render_clip
+    from .agents.producer import produce
+    from .config import load_creators
 
     creators = {c.id: c for c in load_creators()}
     with db.connect() as conn:
-        q = ("SELECT clips.*, streams.video_path, streams.creator_id FROM clips JOIN streams ON streams.id = clips.stream_id ")
+        q = "SELECT clips.id, clips.title, clips.status, streams.video_path, streams.creator_id FROM clips JOIN streams ON streams.id = clips.stream_id "
         rows = (conn.execute(q + f"WHERE clips.id IN ({','.join('?' * len(ids))})", ids).fetchall() if ids
                 else conn.execute(q + "WHERE clips.status IN ('rendered','failed')").fetchall())
     for r in rows:
         print(f"#{r['id']} {r['title']}")
         try:
-            edit = json.loads(r["edit_json"] or "{}")
-            path = render_clip(Path(r["video_path"]), r["start"], r["end"], json.loads(r["words_json"] or "[]"),
-                               creators[r["creator_id"]], DATA / "clips" / f"{r['id']:05d}",
-                               cuts=edit.get("cuts"), hook=edit.get("hook"))
+            path = produce(r["id"], Path(r["video_path"]), creators[r["creator_id"]])
             status, err = ("rendered" if r["status"] in ("rendered", "failed") else r["status"]), None
         except Exception as e:
             path, status, err = None, "failed", str(e)
@@ -115,6 +111,7 @@ def main(argv: list[str] | None = None) -> int:
     s = sub.add_parser("process", help="download a stream, find highlights, render shorts")
     s.add_argument("url")
     s.add_argument("--creator", help="creator id from config/creators.yaml (if auto-match fails)")
+    s.add_argument("--reselect", action="store_true", help="run the selector again (new picks) on an already processed stream")
 
     s = sub.add_parser("check", help="only check whether a stream URL is allowed (no download)")
     s.add_argument("url")
@@ -137,6 +134,9 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("id", type=int)
     s.add_argument("--platform", choices=["tiktok", "youtube"], default="tiktok")
 
+    s = sub.add_parser("music", help="background music library")
+    s.add_argument("action", choices=["download", "list"])
+
     sub.add_parser("status", help="queue and schedule overview")
     sub.add_parser("doctor", help="check setup")
 
@@ -156,7 +156,7 @@ def main(argv: list[str] | None = None) -> int:
         from .config import PermissionError_
         from .pipeline import process
         try:
-            ids = process(a.url, a.creator)
+            ids = process(a.url, a.creator, reselect=a.reselect)
         except PermissionError_ as e:
             print(f"⛔ {e}")
             return 2
@@ -182,6 +182,12 @@ def main(argv: list[str] | None = None) -> int:
     elif a.cmd == "publish-now":
         from .scheduler import publish_now
         return publish_now(a.id, a.platform)
+    elif a.cmd == "music":
+        from . import music
+        if a.action == "download":
+            return music.download()
+        for m in music.MOODS:
+            print(f"{m:9} " + ", ".join(t["title"] for t in music.tracks(m)))
     elif a.cmd == "rerender":
         return _rerender(a.ids)
     elif a.cmd == "frame":

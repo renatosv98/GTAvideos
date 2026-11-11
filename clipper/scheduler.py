@@ -75,13 +75,30 @@ def _record(conn, clip_id, platform, status, remote_id=None, url=None, error=Non
     )
 
 
+def _music_credit(clip) -> str | None:
+    import json
+
+    from . import music
+    title = json.loads(clip["edit_json"] or "{}").get("music") if "edit_json" in clip.keys() else None
+    track = next((t for t in music.tracks() if t["title"] == title), None) if title else None
+    return music.credit(track) if track else None
+
+
 def _description(clip, creator) -> str:
     parts = [clip["caption"] or "", ""]
     parts.append(f"Clip from {creator.credit}.")
     if creator.links.get("description"):
         parts.append(creator.links["description"])
+    if mc := _music_credit(clip):
+        parts.append(mc)
     parts += ["", clip["hashtags"] or ""]
     return "\n".join(parts).strip()
+
+
+def _short_caption(clip) -> str:
+    """TikTok/Instagram caption: title + hashtags + music credit."""
+    text = f"{clip['title']} {clip['hashtags'] or ''}".strip()
+    return f"{text}\n{mc}" if (mc := _music_credit(clip)) else text
 
 
 def publish_now(clip_id: int, platform: str) -> int:
@@ -101,7 +118,7 @@ def publish_now(clip_id: int, platform: str) -> int:
     try:
         if platform == "tiktok":
             from .uploaders import tiktok
-            rid = tiktok.upload(Path(clip["path"]), f"{clip['title']} {clip['hashtags'] or ''}".strip())
+            rid = tiktok.upload(Path(clip["path"]), _short_caption(clip))
             url = None
         else:
             from .uploaders import youtube
@@ -162,7 +179,7 @@ def publish_due(dry_run: bool = False) -> None:
             if not dry_run:
                 from .uploaders import tiktok
                 try:
-                    pid = tiktok.upload(Path(clip["path"]), f"{clip['title']} {clip['hashtags'] or ''}".strip())
+                    pid = tiktok.upload(Path(clip["path"]), _short_caption(clip))
                     with db.connect() as conn:
                         _record(conn, clip["id"], "tiktok", "published", pid)
                 except Exception as e:

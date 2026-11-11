@@ -1,0 +1,87 @@
+# Background music, by mood. All tracks: Kevin MacLeod (incompetech.com), licensed CC BY 4.0:
+# free to use on YouTube/TikTok/Instagram, including monetised, AS LONG AS the credit line is in the description
+# (the publisher adds it automatically).
+#
+# `clipper music download` fetches every file into assets/music/. Add your own tracks the same way
+# (file must be in assets/music/; set license/credit to what the track's licence requires).
+#
+# Moods the selector can choose:
+#   funny     silly, bouncy, goofy           sneaky    mischievous, cartoon tiptoe
+#   suspense  tension before a fail          awkward   deadpan, elevator, cringe
+#   chaos     builds up, frantic             epic      hype, action, big win
+#   fail      sad trombone energy, defeat    chill     driving around, calm
+#   spooky    dark, creepy                   victory   triumphant, celebration
+
+source: "https://incompetech.com/music/royalty-free/mp3-royaltyfree/{title}.mp3"
+artist: "Kevin MacLeod"
+license: "Creative Commons: By Attribution 4.0 License (http://creativecommons.org/licenses/by/4.0/)"
+
+tracks:
+  # your picks
+  - {title: "Monkeys Spinning Monkeys", moods: [funny]}
+  - {title: "Sneaky Snitch", moods: [sneaky, funny]}
+  - {title: "Fluffing a Duck", moods: [funny]}
+  - {title: "Investigations", moods: [suspense, sneaky]}
+  - {title: "Local Forecast - Elevator", moods: [awkward, chill]}
+  - {title: "Scheming Weasel faster", moods: [sneaky, funny]}
+  - {title: "Hall of the Mountain King", moods: [chaos, suspense]}
+  # funny
+  - {title: "Pixel Peeker Polka - faster", moods: [funny, chaos]}
+  - {title: "Merry Go", moods: [funny]}
+  - {title: "Spazzmatica Polka", moods: [funny, chaos]}
+  - {title: "Hyperfun", moods: [funny, epic]}
+  - {title: "Wallpaper", moods: [funny, chill]}
+  - {title: "Carefree", moods: [funny, chill]}
+  - {title: "Life of Riley", moods: [funny, chill]}
+  - {title: "Daily Beetle", moods: [funny]}
+  - {title: "Run Amok", moods: [funny, chaos]}
+  - {title: "Dances and Dames", moods: [funny, sneaky]}
+  - {title: "Off to Osaka", moods: [funny]}
+  - {title: "Funkorama", moods: [funny, chill]}
+  - {title: "Amazing Plan", moods: [funny, sneaky]}
+  - {title: "Quirky Dog", moods: [funny]}
+  - {title: "Silly Fun", moods: [funny]}
+  # sneaky
+  - {title: "Sneaky Adventure", moods: [sneaky]}
+  - {title: "Hitman", moods: [sneaky, suspense]}
+  - {title: "Night on the Docks - Sax", moods: [sneaky, chill]}
+  - {title: "The Show Must Be Go", moods: [sneaky, funny]}
+  # suspense / spooky
+  - {title: "The Path of the Goblin King", moods: [suspense, sneaky]}
+  - {title: "Darkling", moods: [spooky, suspense]}
+  - {title: "Gathering Darkness", moods: [spooky, suspense]}
+  - {title: "Ghost Story", moods: [spooky]}
+  - {title: "Unholy Knight", moods: [spooky, epic]}
+  - {title: "Oppressive Gloom", moods: [spooky, fail]}
+  - {title: "Anxiety", moods: [suspense]}
+  - {title: "Long Note Four", moods: [suspense, spooky]}
+  # awkward / chill
+  - {title: "Lobby Time", moods: [awkward, chill]}
+  - {title: "Airport Lounge", moods: [chill, awkward]}
+  - {title: "Bossa Antigua", moods: [chill]}
+  - {title: "Chill Wave", moods: [chill]}
+  - {title: "Smooth Lovin", moods: [chill, awkward]}
+  - {title: "Easy Lemon", moods: [chill, awkward]}
+  - {title: "Sincerely", moods: [awkward, fail]}
+  # chaos / epic / victory
+  - {title: "Volatile Reaction", moods: [chaos, epic]}
+  - {title: "Cut and Run", moods: [chaos, epic]}
+  - {title: "Movement Proposition", moods: [chaos, epic]}
+  - {title: "Five Armies", moods: [epic]}
+  - {title: "Crusade - Heavy Industry", moods: [epic, chaos]}
+  - {title: "Exhilarate", moods: [epic, victory]}
+  - {title: "Take a Chance", moods: [epic, victory]}
+  - {title: "Killers", moods: [epic, chaos]}
+  - {title: "Impact Prelude", moods: [epic]}
+  - {title: "Heroic Age", moods: [epic, victory]}
+  - {title: "Ouroboros", moods: [epic, suspense]}
+  - {title: "Pump", moods: [epic, chaos]}
+  - {title: "Rocket", moods: [epic, chaos]}
+  - {title: "Winner Winner", moods: [victory, funny]}
+  - {title: "Achaidh Cheide", moods: [victory]}
+  # fail / sad
+  - {title: "Sad Trio", moods: [fail]}
+  - {title: "Heartbreaking", moods: [fail]}
+  - {title: "Despair and Triumph", moods: [fail, victory]}
+  - {title: "Dark Times", moods: [fail, spooky]}
+  - {title: "Lasting Hope", moods: [fail]}
