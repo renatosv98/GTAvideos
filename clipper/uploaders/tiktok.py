@@ -38,7 +38,9 @@ def _save(tok: dict) -> None:
 
 def auth() -> None:
     state = pysecrets.token_urlsafe(16)
-    scope = "user.info.basic,user.info.profile,video.publish,video.upload"
+    scope = "user.info.basic,user.info.profile,video.upload"
+    if SETTINGS["platforms"]["tiktok"].get("mode") == "direct":
+        scope += ",video.publish"
     url = "https://www.tiktok.com/v2/auth/authorize/?" + urllib.parse.urlencode({
         "client_key": _env("TIKTOK_CLIENT_KEY"), "scope": scope, "response_type": "code",
         "redirect_uri": _env("TIKTOK_REDIRECT_URI"), "state": state,
