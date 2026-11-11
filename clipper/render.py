@@ -122,6 +122,30 @@ def remap_words(words: list[dict], segs: list[tuple[float, float]]) -> list[dict
     return out
 
 
+def _integrated_lufs(inputs: list[str], chain: str) -> float:
+    """Integrated loudness (LUFS) of the audio produced by `chain` (a filtergraph ending in [m])."""
+    import json as _json
+    import re as _re
+    proc = subprocess.run([render_ffmpeg(), "-hide_banner", "-nostats", *inputs, "-filter_complex",
+                           chain + ";[m]loudnorm=print_format=json", "-f", "null", "-"],
+                          capture_output=True, text=True)
+    blob = _re.findall(r"\{[^{}]*\"input_i\"[^{}]*\}", proc.stderr)
+    if not blob:
+        raise RuntimeError(f"could not measure loudness: {proc.stderr[-300:]}")
+    val = float(_json.loads(blob[-1])["input_i"])
+    return val if val > -70 else -70.0  # silence
+
+
+def _music_lufs(track: Path) -> float:
+    import json as _json
+    cache = track.parent / ".loudness.json"
+    data = _json.loads(cache.read_text()) if cache.exists() else {}
+    if track.name not in data:
+        data[track.name] = _integrated_lufs(["-i", str(track)], "[0:a]anull[m]")
+        cache.write_text(_json.dumps(data, indent=1))
+    return data[track.name]
+
+
 def render_clip(source: Path, start: float, end: float, words: list[dict], creator: Creator, out_dir: Path,
                 cuts: list | None = None, hook: str | None = None, music: Path | None = None) -> Path:
     cfg = SETTINGS["render"]
@@ -136,17 +160,28 @@ def render_clip(source: Path, start: float, end: float, words: list[dict], creat
     (out_dir / "credit.txt").write_text(f"Clip: {creator.credit}", encoding="utf-8")
 
     # jump cuts: keep only the chosen segments, then everything below works on [src]/[aud]
+    # (tiny fades at every cut so joins don't click)
     n = len(segs)
-    pre = f"[0:v]split={n}" + "".join(f"[sv{i}]" for i in range(n)) + f";[0:a]asplit={n}" + "".join(f"[sa{i}]" for i in range(n)) + ";"
+    afrag = ""
     for i, (a, b) in enumerate(segs):
-        pre += (f"[sv{i}]trim=start={a - start:.3f}:end={b - start:.3f},setpts=PTS-STARTPTS[v{i}];"
-                f"[sa{i}]atrim=start={a - start:.3f}:end={b - start:.3f},asetpts=PTS-STARTPTS[a{i}];")
+        ln = b - a
+        afrag += (f"[sa{i}]atrim=start={a - start:.3f}:end={b - start:.3f},asetpts=PTS-STARTPTS,"
+                  f"afade=t=in:d=0.04,afade=t=out:st={max(0.0, ln - 0.04):.3f}:d=0.04[a{i}];")
+    asplit = f"[0:a]asplit={n}" + "".join(f"[sa{i}]" for i in range(n)) + ";"
+    pre = f"[0:v]split={n}" + "".join(f"[sv{i}]" for i in range(n)) + ";" + asplit
+    for i, (a, b) in enumerate(segs):
+        pre += f"[sv{i}]trim=start={a - start:.3f}:end={b - start:.3f},setpts=PTS-STARTPTS[v{i}];"
+    pre += afrag
     pre += "".join(f"[v{i}][a{i}]" for i in range(n)) + f"concat=n={n}:v=1:a=1[src][aud0];"
+
+    # loudness: measure first, then ONE fixed gain for the whole clip (no 3-second warm-up wobble at the start)
+    src_in = ["-ss", f"{start:.3f}", "-t", f"{end - start:.3f}", "-i", str(source)]
+    voice_lufs = _integrated_lufs(src_in, asplit + afrag + "".join(f"[a{i}]" for i in range(n))
+                                  + f"concat=n={n}:v=0:a=1[m]")
+    vgain = -14.0 - voice_lufs
     fmt = "aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo"
-    if music:
-        pre += f"[aud0]loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000,{fmt},asplit=2[voice][sc];"
-    else:
-        pre += f"[aud0]loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000,{fmt}[aud];"
+    voice = f"[aud0]{fmt},volume={vgain:.2f}dB,alimiter=limit=0.89:attack=5:release=60:level=disabled"
+    pre += f"{voice},asplit=2[voice][sc];" if music else f"{voice}[aud];"
 
     font = _font()
     fontopt = f"fontfile='{font}':" if font else ""
@@ -207,8 +242,8 @@ def render_clip(source: Path, start: float, end: float, words: list[dict], creat
     if music:  # quiet background track that ducks further whenever the streamer talks
         mi = inputs.count("-i")
         inputs += ["-stream_loop", "-1", "-i", str(Path(music).resolve())]
-        lufs = cfg.get("music_lufs", -16)
-        pre += (f"[{mi}:a]loudnorm=I={lufs}:TP=-8:LRA=11,aresample=48000,{fmt},atrim=0:{dur:.3f},afade=t=in:d=0.6,"
+        mgain = cfg.get("music_lufs", -16) - _music_lufs(Path(music).resolve())
+        pre += (f"[{mi}:a]{fmt},volume={mgain:.2f}dB,atrim=0:{dur:.3f},afade=t=in:d=0.6,"
                 f"afade=t=out:st={max(0.0, dur - 1.5):.3f}:d=1.5[m0];"
                 f"[m0][sc]sidechaincompress=threshold=0.05:ratio=2.5:attack=30:release=500[mduck];"
                 f"[voice][mduck]amix=inputs=2:duration=first:normalize=0,alimiter=limit=0.89[aud];")
