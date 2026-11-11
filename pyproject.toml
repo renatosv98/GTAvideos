@@ -1,0 +1,30 @@
+[project]
+name = "gta6-clipper"
+version = "0.1.0"
+description = "Turn permitted GTA 6 streams into reviewed, credited vertical shorts and publish them on a schedule."
+requires-python = ">=3.11,<3.13"
+dependencies = [
+    "anthropic>=0.70",
+    "yt-dlp>=2025.1.1",
+    "faster-whisper>=1.1",
+    "numpy>=1.26",
+    "pyyaml>=6.0",
+    "flask>=3.0",
+    "requests>=2.32",
+    "python-dotenv>=1.0",
+    "google-api-python-client>=2.150",
+    "google-auth-oauthlib>=1.2",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[project.scripts]
+clipper = "clipper.cli:main"
+
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["clipper*"]

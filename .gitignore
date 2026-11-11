@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+secrets/
+data/
+assets/bottom/*
+!assets/bottom/README.md
+.DS_Store
+.pytest_cache/
+*.egg-info/

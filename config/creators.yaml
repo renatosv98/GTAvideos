@@ -1,0 +1,27 @@
+# Creators whose streams you may clip.
+#
+# The pipeline will NOT process a stream unless its channel matches an entry
+# here with permission.granted: true. Splitting the screen or adding content
+# underneath does not make an unlicensed clip legal; permission does.
+#
+# How to get permission: many streamers allow clipping publicly (look for
+# "clipping allowed" or a clipping program in their channel About page, Discord
+# or website). Otherwise ask by email or DM, and save the reply as evidence.
+#
+# `match` is any substring of the channel URL, channel ID or channel name that
+# yt-dlp reports for the stream (lowercase compare).
+
+creators:
+  - id: example_streamer
+    display_name: "Example Streamer"
+    credit: "@examplestreamer on Twitch"   # shown on every clip
+    match:
+      - "twitch.tv/examplestreamer"
+      - "youtube.com/@examplestreamer"
+    permission:
+      granted: false                       # set true only with evidence below
+      source: ""                           # e.g. "Public clipping policy on About page" / "Email reply 2026-11-10"
+      evidence: ""                         # link or path to screenshot/email
+      terms: ""                            # e.g. "Must credit + link channel, no monetized compilations"
+    links:
+      description: "Full stream: https://twitch.tv/examplestreamer"

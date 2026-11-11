@@ -1,0 +1,56 @@
+data_dir: data
+
+download:
+  max_height: 1080          # source resolution cap (lower = faster)
+  chat: true                # pull YouTube live-chat replay when available
+
+highlights:
+  candidates: 20            # loudest/hypest windows sent to Claude
+  min_gap_seconds: 120      # peaks closer than this are merged
+  window_before: 45         # seconds of context before a peak
+  window_after: 30
+  chat_weight: 0.6          # weighting of chat spikes vs audio spikes
+  hype_words: ["lol", "lmao", "lmfao", "omg", "w", "kekw", "clip", "no way", "bro", "😂", "💀", "pog", "insane"]
+
+transcription:
+  model: small              # tiny | base | small | medium | large-v3
+  device: auto              # auto | cpu | cuda
+  compute_type: int8
+  language: null            # null = auto-detect
+
+analysis:
+  model: claude-opus-5-5
+  effort: medium
+  max_clips: 6              # clips kept per stream
+  min_seconds: 15
+  max_seconds: 59
+  frames_per_candidate: 2   # still frames sent to Claude per candidate (0 = text only)
+
+render:
+  layout: stack             # stack = gameplay top + your content bottom; blur = gameplay over blurred background
+  width: 1080
+  height: 1920
+  top_height: 1080          # stack layout: height of the gameplay panel
+  crop_center_x: 0.5        # 0..1, horizontal crop focus of the 16:9 source
+  bottom_dir: assets/bottom # YOUR OWN videos (own gameplay, reactions, licensed b-roll)
+  captions: true
+  caption_words_per_line: 3
+  font: "Arial Black"
+  crf: 20
+
+schedule:
+  interval_hours: 4
+  anchor_hour: 0            # slots at 00:00, 04:00, 08:00 ... in timezone below
+  timezone: Europe/London
+  youtube_upload_ahead_hours: 48   # upload private early with publishAt; YouTube publishes on time even if your Mac is off
+
+platforms:
+  youtube:
+    enabled: true
+    category_id: "20"       # Gaming
+    default_tags: ["GTA6", "GTA 6", "Grand Theft Auto VI", "Shorts"]
+    made_for_kids: false
+  tiktok:
+    enabled: true
+    mode: direct            # direct = publish (needs audited app); inbox = sends to your TikTok drafts
+    privacy_level: PUBLIC_TO_EVERYONE
