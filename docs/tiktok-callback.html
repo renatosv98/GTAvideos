@@ -1,10 +1,37 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>TikTok login</title>
-<style>body{font:16px/1.6 -apple-system,system-ui,sans-serif;max-width:680px;margin:40px auto;padding:0 16px;color:#111;background:#fff}textarea{width:100%;font:13px monospace}</style>
+<style>
+body{font:16px/1.6 -apple-system,system-ui,sans-serif;max-width:680px;margin:40px auto;padding:0 16px;color:#111;background:#fff}
+textarea{width:100%;box-sizing:border-box;font:13px monospace}
+button{font:600 18px system-ui;padding:12px 24px;margin:12px 0;border:0;border-radius:8px;background:#fe2c55;color:#fff;cursor:pointer}
+.bad{color:#b00020}
+</style>
 </head><body>
+<div id="ok" hidden>
 <h1>Almost done</h1>
-<p>Copy this whole link and paste it back into Terminal:</p>
-<textarea id="u" rows="4" readonly></textarea>
-<script>var t=document.getElementById('u');t.value=location.href;t.select();</script>
+<p>Click the button, then paste into Terminal after <b>Redirected URL:</b> and press Enter.</p>
+<button id="b">Copy link</button> <span id="done"></span>
+<textarea id="u" rows="5" readonly></textarea>
+</div>
+<div id="err" hidden>
+<h1 class="bad">TikTok didn't send a login code</h1>
+<p id="msg"></p>
+<p>Go back to Terminal, run <code>clipper auth tiktok</code> again and open the <b>new</b> link it prints.</p>
+</div>
+<script>
+var q=new URLSearchParams(location.search);
+if(q.get('code')){
+  document.getElementById('ok').hidden=false;
+  var t=document.getElementById('u');t.value=location.href;
+  document.getElementById('b').onclick=function(){
+    t.select();
+    (navigator.clipboard?navigator.clipboard.writeText(location.href):Promise.reject()).catch(function(){document.execCommand('copy')});
+    document.getElementById('done').textContent='✅ Copied';
+  };
+}else{
+  document.getElementById('err').hidden=false;
+  document.getElementById('msg').textContent=q.get('error')?('Error: '+q.get('error')+' '+(q.get('error_description')||'')):'This page was opened directly, not by TikTok after logging in.';
+}
+</script>
 </body></html>
