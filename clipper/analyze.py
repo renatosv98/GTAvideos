@@ -72,9 +72,16 @@ def analyze(video: Path, title: str, creator: Creator, candidates: list[Candidat
                 f"Return up to {cfg['max_clips']} picks, best first, each {cfg['min_seconds']}-{cfg['max_seconds']} seconds long.",
     }]
     words_by_id: dict[int, list[dict]] = {}
+    cache_file = Path(video).parent / "transcripts.json"
+    cache: dict[str, list[dict]] = json.loads(cache_file.read_text()) if cache_file.exists() else {}
     for c in candidates:
-        print(f"  transcribing candidate {c.idx} ({c.start:.0f}s-{c.end:.0f}s)")
-        words = transcribe_window(video, c.start, c.end)
+        key = f"{c.start:.1f}-{c.end:.1f}"
+        if key in cache:
+            words = cache[key]
+        else:
+            print(f"  transcribing candidate {c.idx} ({c.start:.0f}s-{c.end:.0f}s)")
+            words = cache[key] = transcribe_window(video, c.start, c.end)
+            cache_file.write_text(json.dumps(cache))
         words_by_id[c.idx] = words
         content.append({
             "type": "text",
