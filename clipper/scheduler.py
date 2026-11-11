@@ -134,6 +134,21 @@ def publish_now(clip_id: int, platform: str) -> int:
 
 
 def publish_due(dry_run: bool = False) -> None:
+    """Only one publisher at a time: two overlapping runs (e.g. launchd + a manual run) would upload twice."""
+    import fcntl
+
+    from .config import DATA
+    DATA.mkdir(parents=True, exist_ok=True)
+    with open(DATA / "publish.lock", "w") as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            print("Another publish run is in progress; skipping this one.")
+            return
+        _publish_due(dry_run)
+
+
+def _publish_due(dry_run: bool = False) -> None:
     now = datetime.now(UTC)
     plat = SETTINGS["platforms"]
     ahead = timedelta(hours=SETTINGS["schedule"]["youtube_upload_ahead_hours"])
