@@ -65,12 +65,18 @@ Style: Cap,{cfg.get('font', 'Arial Black')},84,&H00FFFFFF,&H0000FFFF,&H00000000,
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
+    # groups of up to `per` words, never spanning a pause (or a jump cut)
+    groups: list[list[dict]] = []
+    for w in words:
+        if groups and len(groups[-1]) < per and w["s"] - groups[-1][-1]["e"] < 0.7:
+            groups[-1].append(w)
+        else:
+            groups.append([w])
     lines = []
-    for i in range(0, len(words), per):
-        group = words[i:i + per]
+    for gi, group in enumerate(groups):
         s = group[0]["s"] - clip_start
         e = group[-1]["e"] - clip_start
-        nxt = words[i + per]["s"] - clip_start if i + per < len(words) else e + 0.4
+        nxt = groups[gi + 1][0]["s"] - clip_start if gi + 1 < len(groups) else e + 0.4
         e = max(e, min(nxt, s + 1.5))
         text = " ".join(w["w"] for w in group).upper().replace("{", "(").replace("}", ")")
         lines.append(f"Dialogue: 0,{_ts(s)},{_ts(e)},Cap,,0,0,0,,{{\\pos({cfg['width']//2},{y})}}{text}")
@@ -87,21 +93,63 @@ def _pick_bottom() -> Path:
     return random.choice(files)
 
 
-def render_clip(source: Path, start: float, end: float, words: list[dict], creator: Creator, out_dir: Path) -> Path:
+def _wrap(text: str, width: int = 20) -> str:
+    lines, cur = [], ""
+    for w in text.split():
+        if cur and len(cur) + 1 + len(w) > width:
+            lines.append(cur)
+            cur = w
+        else:
+            cur = f"{cur} {w}".strip()
+    return "\n".join(lines + [cur])
+
+
+def plan_segments(start: float, end: float, cuts: list | None) -> list[tuple[float, float]]:
+    """Segments to keep (absolute stream seconds), clamped to [start, end]; whole range if no cuts."""
+    segs = sorted((max(start, float(a)), min(end, float(b))) for a, b in (cuts or []))
+    segs = [(a, b) for a, b in segs if b - a >= 0.5]
+    return segs or [(start, end)]
+
+
+def remap_words(words: list[dict], segs: list[tuple[float, float]]) -> list[dict]:
+    """Shift word times onto the edited timeline (0 = first frame of the short); drop words that were cut."""
+    out, offset = [], 0.0
+    for a, b in segs:
+        for w in words:
+            if a <= w["s"] < b:
+                out.append({**w, "s": w["s"] - a + offset, "e": min(w["e"], b) - a + offset})
+        offset += b - a
+    return out
+
+
+def render_clip(source: Path, start: float, end: float, words: list[dict], creator: Creator, out_dir: Path,
+                cuts: list | None = None, hook: str | None = None) -> Path:
     cfg = SETTINGS["render"]
     W, H = cfg["width"], cfg["height"]
-    dur = end - start
+    segs = plan_segments(start, end, cuts)
+    start, end = segs[0][0], segs[-1][1]
+    dur = sum(b - a for a, b in segs)
+    words = remap_words(words, segs)
     source, out_dir = Path(source).resolve(), Path(out_dir).resolve()  # ffmpeg runs with cwd=out_dir
     out_dir.mkdir(parents=True, exist_ok=True)
     out = out_dir / "short.mp4"
     (out_dir / "credit.txt").write_text(f"Clip: {creator.credit}", encoding="utf-8")
+
+    # jump cuts: keep only the chosen segments, then everything below works on [src]/[aud]
+    n = len(segs)
+    pre = f"[0:v]split={n}" + "".join(f"[sv{i}]" for i in range(n)) + f";[0:a]asplit={n}" + "".join(f"[sa{i}]" for i in range(n)) + ";"
+    for i, (a, b) in enumerate(segs):
+        pre += (f"[sv{i}]trim=start={a - start:.3f}:end={b - start:.3f},setpts=PTS-STARTPTS[v{i}];"
+                f"[sa{i}]atrim=start={a - start:.3f}:end={b - start:.3f},asetpts=PTS-STARTPTS[a{i}];")
+    pre += "".join(f"[v{i}][a{i}]" for i in range(n)) + f"concat=n={n}:v=1:a=1[src][aud0];"
+    pre += "[aud0]loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000[aud];"
 
     font = _font()
     fontopt = f"fontfile='{font}':" if font else ""
     credit = (f"drawtext={fontopt}textfile=credit.txt:fontsize=42:fontcolor=white:borderw=4:bordercolor=black@0.8:"
               f"x=(w-text_w)/2:y=60")
 
-    inputs = ["-ss", f"{start:.3f}", "-t", f"{dur:.3f}", "-i", str(source)]
+    inputs = ["-ss", f"{start:.3f}", "-t", f"{end - start:.3f}", "-i", str(source)]  # full span; cuts trim it
     layout = cfg.get("layout", "stack")
     if layout == "facecam" and not creator.facecam:
         print(f"    no facecam position for {creator.id} in creators.yaml; using blur layout")
@@ -112,7 +160,7 @@ def render_clip(source: Path, start: float, end: float, words: list[dict], creat
         bot_h = H - top_h
         cx = cfg.get("crop_center_x", 0.5)
         graph = (
-            f"[0:v]split[a][b];"
+            f"[src]split[a][b];"
             f"[a]crop=iw*{fc['w']}:ih*{fc['h']}:iw*{fc['x']}:ih*{fc['y']},"
             f"scale={W}:{top_h}:force_original_aspect_ratio=increase:flags=lanczos,crop={W}:{top_h},setsar=1[cam];"
             f"[b]scale=-2:{bot_h},crop={W}:{bot_h}:'max(0,min(iw-{W},iw*{cx}-{W}/2))':0,setsar=1[game];"
@@ -128,14 +176,14 @@ def render_clip(source: Path, start: float, end: float, words: list[dict], creat
         inputs += ["-stream_loop", "-1", "-ss", f"{boff:.2f}", "-i", str(bottom)]
         cx = cfg.get("crop_center_x", 0.5)
         graph = (
-            f"[0:v]scale=-2:{top_h},crop={W}:{top_h}:'max(0,min(iw-{W},iw*{cx}-{W}/2))':0,setsar=1[top];"
+            f"[src]scale=-2:{top_h},crop={W}:{top_h}:'max(0,min(iw-{W},iw*{cx}-{W}/2))':0,setsar=1[top];"
             f"[1:v]scale={W}:{bot_h}:force_original_aspect_ratio=increase,crop={W}:{bot_h},setsar=1,fps=30[bot];"
             f"[top]fps=30[topf];[topf][bot]vstack=inputs=2[stk]"
         )
         cap_y = top_h
     else:  # blur
         graph = (
-            f"[0:v]split[a][b];"
+            f"[src]split[a][b];"
             f"[a]scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},boxblur=25:2,eq=brightness=-0.15[bg];"
             f"[b]scale={W}:-2[fg];[bg][fg]overlay=0:(H-h)/2,setsar=1,fps=30[stk]"
         )
@@ -143,16 +191,22 @@ def render_clip(source: Path, start: float, end: float, words: list[dict], creat
 
     last = "stk"
     if cfg.get("captions", True) and words:
-        write_ass(words, start, out_dir / "subs.ass", cap_y)
+        write_ass(words, 0.0, out_dir / "subs.ass", cap_y)
         graph += f";[{last}]subtitles=subs.ass[cap]"
         last = "cap"
-    graph += f";[{last}]{credit}[v]"
+    if hook:
+        (out_dir / "hook.txt").write_text(_wrap(hook.upper()), encoding="utf-8")
+        hook_y = cap_y + 170 if layout != "blur" else int(H * 0.16)
+        graph += (f";[{last}]drawtext={fontopt}textfile=hook.txt:fontsize=64:fontcolor=black:line_spacing=10:"
+                  f"box=1:boxcolor=white:boxborderw=22:x=(w-text_w)/2:y={hook_y}:enable='lt(t,3.5)'[hk]")
+        last = "hk"
+    graph = pre + graph + f";[{last}]{credit}[v]"
 
     cmd = [
         render_ffmpeg(), "-v", "error", "-stats", "-y", *inputs,
-        "-filter_complex", graph, "-map", "[v]", "-map", "0:a?",
+        "-filter_complex", graph, "-map", "[v]", "-map", "[aud]",
         "-t", f"{dur:.3f}", "-c:v", "libx264", "-preset", "medium", "-crf", str(cfg.get("crf", 20)),
-        "-pix_fmt", "yuv420p", "-af", "loudnorm=I=-14:TP=-1.5:LRA=11", "-ar", "48000", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", str(out),
+        "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", str(out),
     ]
     subprocess.run(cmd, check=True, cwd=out_dir)
     return out

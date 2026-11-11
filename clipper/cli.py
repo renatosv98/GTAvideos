@@ -72,8 +72,10 @@ def _rerender(ids: list[int]) -> int:
     for r in rows:
         print(f"#{r['id']} {r['title']}")
         try:
+            edit = json.loads(r["edit_json"] or "{}")
             path = render_clip(Path(r["video_path"]), r["start"], r["end"], json.loads(r["words_json"] or "[]"),
-                               creators[r["creator_id"]], DATA / "clips" / f"{r['id']:05d}")
+                               creators[r["creator_id"]], DATA / "clips" / f"{r['id']:05d}",
+                               cuts=edit.get("cuts"), hook=edit.get("hook"))
             status, err = ("rendered" if r["status"] in ("rendered", "failed") else r["status"]), None
         except Exception as e:
             path, status, err = None, "failed", str(e)

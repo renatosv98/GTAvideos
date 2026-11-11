@@ -47,16 +47,18 @@ def process(url: str, creator_id: str | None = None) -> list[int]:
         for p in picks:
             with db.connect() as conn:
                 cur = conn.execute(
-                    "INSERT INTO clips (stream_id, start, end, score, title, caption, hashtags, reason, risk_notes, words_json)"
-                    " VALUES (?,?,?,?,?,?,?,?,?,?)",
+                    "INSERT INTO clips (stream_id, start, end, score, title, caption, hashtags, reason, risk_notes, words_json, edit_json)"
+                    " VALUES (?,?,?,?,?,?,?,?,?,?,?)",
                     (stream_id, p["start"], p["end"], p["virality"], p["title"], p["caption"],
                      " ".join(h if h.startswith("#") else f"#{h}" for h in p["hashtags"]),
-                     p["reason"], p["risk_notes"], json.dumps(p["words"])),
+                     p["reason"], p["risk_notes"], json.dumps(p["words"]),
+                     json.dumps({"cuts": p.get("cuts"), "hook": p.get("hook")})),
                 )
                 clip_id = cur.lastrowid
             out_dir = DATA / "clips" / f"{clip_id:05d}"
             try:
-                path = render_clip(Path(video), p["start"], p["end"], p["words"], creator, out_dir)
+                path = render_clip(Path(video), p["start"], p["end"], p["words"], creator, out_dir,
+                                   cuts=p.get("cuts"), hook=p.get("hook"))
                 status, err = "rendered", None
             except Exception as e:  # keep going with the other clips
                 path, status, err = None, "failed", str(e)

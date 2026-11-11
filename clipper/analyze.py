@@ -10,16 +10,25 @@ from typing import Any
 import anthropic
 
 from .config import SETTINGS, Creator
+from .render import plan_segments
 from .signals import Candidate
 from .transcribe import transcribe_window, words_to_text
 
 SYSTEM = """You are the editor of a GTA 6 shorts channel that clips streams from creators who have given permission.
-You receive candidate moments from one stream (found by audio and chat spikes), each with a timestamped transcript and sometimes still frames.
-Pick the moments most likely to perform as 15-59 second vertical shorts: a clear hook in the first 2 seconds, a payoff, and sense without context.
-Prefer funny reactions, chaos, surprising game mechanics, first impressions of new GTA 6 features, and strong emotional moments.
-Skip slow menus, loading screens, dead air, and moments that only make sense with prior context.
+Your only goal: shorts people watch to the end, rewatch and share. You receive candidate moments from one stream
+(found by audio and chat spikes), each with a timestamped transcript and still frames.
 
-For each pick, choose exact start/end seconds (absolute stream time, inside the candidate window) so the clip starts right before the hook and ends right after the payoff.
+Editor's rules:
+- A short is a mini-story: setup (2-5 s) -> escalation -> payoff (fail, win, twist, scream, punchline) -> 1-3 s reaction, then END.
+- Skip candidates without a clear payoff. Talking about life, menus, driving around, eating, reading chat = reject, even if loud.
+- Prefer: dramatic fails, last-second wins/losses, rage, chaos, absurd game physics, big reveals, first reactions to GTA 6.
+- Start as late as possible: the first second must already be interesting. End right after the reaction; never trail off.
+- Cut dead air: keep_segments lists the parts to KEEP (absolute seconds, in order). Drop silences > 1.5 s, results/loading
+  screens that drag, and off-topic chatter, but keep silent moments where the action on screen IS the story.
+- hook: 3-8 words burned on screen for the first 3 seconds that create curiosity without spoiling the payoff
+  (e.g. "Iba 2º a 10 metros de la meta..."). Same language as the stream.
+- Ideal length 20-40 s of kept footage. Fewer great picks beat many weak ones.
+
 Write a punchy title (max 70 chars, no clickbait lies), a short caption, and 3-6 hashtags.
 In risk_notes, flag anything that could cause a copyright claim or policy problem: in-game radio or licensed music audible, background music on stream, other people's content on screen (videos, TikToks, other streamers), slurs, personal info, or anything else. Write "none" if clean."""
 
@@ -34,6 +43,10 @@ PICK_SCHEMA = {
                     "candidate_id": {"type": "integer"},
                     "start": {"type": "number"},
                     "end": {"type": "number"},
+                    "keep_segments": {"type": "array", "items": {
+                        "type": "object", "properties": {"start": {"type": "number"}, "end": {"type": "number"}},
+                        "required": ["start", "end"], "additionalProperties": False}},
+                    "hook": {"type": "string"},
                     "virality": {"type": "integer", "description": "1-10"},
                     "title": {"type": "string"},
                     "caption": {"type": "string"},
@@ -41,7 +54,7 @@ PICK_SCHEMA = {
                     "reason": {"type": "string"},
                     "risk_notes": {"type": "string"},
                 },
-                "required": ["candidate_id", "start", "end", "virality", "title", "caption", "hashtags", "reason", "risk_notes"],
+                "required": ["candidate_id", "start", "end", "keep_segments", "hook", "virality", "title", "caption", "hashtags", "reason", "risk_notes"],
                 "additionalProperties": False,
             },
         }
@@ -118,6 +131,10 @@ def analyze(video: Path, title: str, creator: Creator, candidates: list[Candidat
             continue
         start = max(c.start, min(p["start"], c.end - cfg["min_seconds"]))
         end = min(c.end, max(p["end"], start + cfg["min_seconds"]), start + cfg["max_seconds"])
-        p.update(start=start, end=end, words=[w for w in words_by_id[c.idx] if start <= w["s"] < end])
+        segs = plan_segments(start, end, [(k["start"], k["end"]) for k in p.get("keep_segments") or []])
+        if sum(b - a for a, b in segs) < cfg["min_seconds"]:
+            segs = [(start, end)]  # cuts too aggressive: keep the whole range
+        p.update(start=segs[0][0], end=segs[-1][1], cuts=[list(x) for x in segs],
+                 words=[w for w in words_by_id[c.idx] if start <= w["s"] < end])
         cleaned.append(p)
     return cleaned[: cfg["max_clips"]]

@@ -58,6 +58,9 @@ def connect() -> Iterator[sqlite3.Connection]:
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA)
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(clips)")}
+    if "edit_json" not in cols:  # {"cuts": [[start, end], ...], "hook": "..."}
+        conn.execute("ALTER TABLE clips ADD COLUMN edit_json TEXT")
     try:
         yield conn
         conn.commit()

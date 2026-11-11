@@ -51,3 +51,13 @@ def test_ass_captions(tmp_path):
     text = out.read_text()
     assert "NO WAY HE" in text and "\\pos(540,1080)" in text
     assert text.count("Dialogue:") == 3
+
+
+def test_jump_cuts_remap_words():
+    from clipper.render import plan_segments, remap_words
+    segs = plan_segments(10, 40, [[30, 40], [10, 20], [25, 25.2]])  # unsorted, one too short
+    assert segs == [(10, 20), (30, 40)]
+    words = [{"w": "a", "s": 12, "e": 13}, {"w": "cut", "s": 22, "e": 23}, {"w": "b", "s": 31, "e": 32}]
+    out = remap_words(words, segs)
+    assert [w["w"] for w in out] == ["a", "b"]
+    assert out[1]["s"] == 11  # 31 - 30 + 10s of first segment

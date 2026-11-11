@@ -25,7 +25,7 @@ analysis:
   effort: medium
   max_clips: 6              # clips kept per stream
   min_seconds: 15
-  max_seconds: 59
+  max_seconds: 45
   frames_per_candidate: 2   # still frames sent to Claude per candidate (0 = text only)
 
 render:
