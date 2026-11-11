@@ -38,6 +38,7 @@ class Creator:
     permission: dict[str, Any]
     links: dict[str, Any]
     language: str = "English"
+    facecam: dict[str, float] | None = None  # x, y, w, h as fractions of the source frame
 
     @property
     def permitted(self) -> bool:
@@ -56,6 +57,7 @@ def load_creators() -> list[Creator]:
             permission=c.get("permission", {}) or {},
             links=c.get("links", {}) or {},
             language=c.get("language", "English"),
+            facecam=c.get("facecam"),
         )
         for c in raw
     ]

@@ -20,6 +20,16 @@ FONT_CANDIDATES = [
 ]
 
 
+def render_ffmpeg() -> str:
+    """ffmpeg build with libass (captions) + freetype (text). Homebrew's default build has neither."""
+    try:
+        import imageio_ffmpeg
+
+        return imageio_ffmpeg.get_ffmpeg_exe()
+    except Exception:
+        return "ffmpeg"
+
+
 def _font() -> Path | None:
     return next((p for p in FONT_CANDIDATES if p.exists()), None)
 
@@ -81,6 +91,7 @@ def render_clip(source: Path, start: float, end: float, words: list[dict], creat
     cfg = SETTINGS["render"]
     W, H = cfg["width"], cfg["height"]
     dur = end - start
+    source, out_dir = Path(source).resolve(), Path(out_dir).resolve()  # ffmpeg runs with cwd=out_dir
     out_dir.mkdir(parents=True, exist_ok=True)
     out = out_dir / "short.mp4"
     (out_dir / "credit.txt").write_text(f"Clip: {creator.credit}", encoding="utf-8")
@@ -92,7 +103,23 @@ def render_clip(source: Path, start: float, end: float, words: list[dict], creat
 
     inputs = ["-ss", f"{start:.3f}", "-t", f"{dur:.3f}", "-i", str(source)]
     layout = cfg.get("layout", "stack")
-    if layout == "stack":
+    if layout == "facecam" and not creator.facecam:
+        print(f"    no facecam position for {creator.id} in creators.yaml; using blur layout")
+        layout = "blur"
+    if layout == "facecam":
+        fc = creator.facecam
+        top_h = cfg.get("facecam_height", 840)
+        bot_h = H - top_h
+        cx = cfg.get("crop_center_x", 0.5)
+        graph = (
+            f"[0:v]split[a][b];"
+            f"[a]crop=iw*{fc['w']}:ih*{fc['h']}:iw*{fc['x']}:ih*{fc['y']},"
+            f"scale={W}:{top_h}:force_original_aspect_ratio=increase:flags=lanczos,crop={W}:{top_h},setsar=1[cam];"
+            f"[b]scale=-2:{bot_h},crop={W}:{bot_h}:'max(0,min(iw-{W},iw*{cx}-{W}/2))':0,setsar=1[game];"
+            f"[cam][game]vstack=inputs=2,fps=30[stk]"
+        )
+        cap_y = top_h
+    elif layout == "stack":
         top_h = cfg["top_height"]
         bot_h = H - top_h
         bottom = _pick_bottom()
@@ -122,7 +149,7 @@ def render_clip(source: Path, start: float, end: float, words: list[dict], creat
     graph += f";[{last}]{credit}[v]"
 
     cmd = [
-        "ffmpeg", "-v", "error", "-stats", "-y", *inputs,
+        render_ffmpeg(), "-v", "error", "-stats", "-y", *inputs,
         "-filter_complex", graph, "-map", "[v]", "-map", "0:a?",
         "-t", f"{dur:.3f}", "-c:v", "libx264", "-preset", "medium", "-crf", str(cfg.get("crf", 20)),
         "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", str(out),

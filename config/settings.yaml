@@ -29,7 +29,8 @@ analysis:
   frames_per_candidate: 2   # still frames sent to Claude per candidate (0 = text only)
 
 render:
-  layout: blur             # stack = gameplay top + your content bottom; blur = gameplay over blurred background
+  layout: facecam           # facecam = streamer's camera top + gameplay bottom; stack = gameplay top + your content bottom; blur = gameplay over blurred background
+  facecam_height: 840       # facecam layout: height of the camera panel (gameplay gets the rest)
   width: 1080
   height: 1920
   top_height: 1080          # stack layout: height of the gameplay panel

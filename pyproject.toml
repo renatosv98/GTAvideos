@@ -14,6 +14,7 @@ dependencies = [
     "python-dotenv>=1.0",
     "google-api-python-client>=2.150",
     "google-auth-oauthlib>=1.2",
+    "imageio-ffmpeg>=0.6",  # full ffmpeg build with captions/text support, used for rendering
 ]
 
 [project.optional-dependencies]

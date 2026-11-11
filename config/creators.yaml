@@ -14,6 +14,9 @@ creators:
     display_name: "IlloJuan"
     credit: "IlloJuan (twitch.tv/illojuan)"
     language: Spanish
+    # Facecam box as fractions of the frame (x, y = top-left corner). Measured on his GTA stream, Nov 2026.
+    # If he moves his camera, re-measure: `clipper frame <stream-url>` saves a screenshot with a grid.
+    facecam: {x: 0.027, y: 0.292, w: 0.150, h: 0.275}
     match:
       - "twitch.tv/illojuan"
       - "illojuan"

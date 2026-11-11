@@ -57,6 +57,55 @@ def _status() -> int:
     return 0
 
 
+def _rerender(ids: list[int]) -> int:
+    import json
+    from pathlib import Path
+
+    from .config import DATA, load_creators
+    from .render import render_clip
+
+    creators = {c.id: c for c in load_creators()}
+    with db.connect() as conn:
+        q = ("SELECT clips.*, streams.video_path, streams.creator_id FROM clips JOIN streams ON streams.id = clips.stream_id ")
+        rows = (conn.execute(q + f"WHERE clips.id IN ({','.join('?' * len(ids))})", ids).fetchall() if ids
+                else conn.execute(q + "WHERE clips.status IN ('rendered','failed')").fetchall())
+    for r in rows:
+        print(f"#{r['id']} {r['title']}")
+        try:
+            path = render_clip(Path(r["video_path"]), r["start"], r["end"], json.loads(r["words_json"] or "[]"),
+                               creators[r["creator_id"]], DATA / "clips" / f"{r['id']:05d}")
+            status, err = ("rendered" if r["status"] in ("rendered", "failed") else r["status"]), None
+        except Exception as e:
+            path, status, err = None, "failed", str(e)
+            print(f"   failed: {e}")
+        with db.connect() as conn:
+            conn.execute("UPDATE clips SET path=COALESCE(?, path), status=?, review_notes=? WHERE id=?",
+                         (str(path) if path else None, status, err, r["id"]))
+    print(f"Re-rendered {len(rows)} clips.")
+    return 0
+
+
+def _frame(url: str, at: float) -> int:
+    import subprocess
+
+    from .config import DATA
+    from .download import probe
+
+    with db.connect() as conn:
+        row = conn.execute("SELECT video_path FROM streams WHERE url = ?", (url,)).fetchone()
+    src = row["video_path"] if row and row["video_path"] else None
+    if not src:  # not downloaded: read the frame straight from the stream
+        info = probe(url)
+        fmts = [f for f in info.get("formats", []) if f.get("vcodec") not in (None, "none") and (f.get("height") or 0) <= 720]
+        src = (fmts[-1] if fmts else info)["url"]
+    out = DATA / "frame.jpg"
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", str(at), "-i", src, "-frames:v", "1",
+                    "-vf", "scale=1280:-2,drawgrid=w=iw/10:h=ih/10:t=1:c=yellow@0.7", str(out)], check=True)
+    print(f"Saved {out}. Each grid square is 10% of the width/height. Opening it...")
+    subprocess.run(["open", str(out)])
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="clipper", description="GTA 6 stream -> shorts pipeline")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -74,6 +123,13 @@ def main(argv: list[str] | None = None) -> int:
 
     s = sub.add_parser("publish-due", help="upload clips whose slot is due (run every 15 min)")
     s.add_argument("--dry-run", action="store_true")
+
+    s = sub.add_parser("rerender", help="re-render clips with the current layout settings (no new Claude call)")
+    s.add_argument("ids", nargs="*", type=int, help="clip ids (default: all clips awaiting review)")
+
+    s = sub.add_parser("frame", help="save a screenshot with a 10%% grid, to measure a creator's facecam position")
+    s.add_argument("url")
+    s.add_argument("--at", type=float, default=1800, help="seconds into the stream (default 1800)")
 
     sub.add_parser("status", help="queue and schedule overview")
     sub.add_parser("doctor", help="check setup")
@@ -117,6 +173,10 @@ def main(argv: list[str] | None = None) -> int:
     elif a.cmd == "publish-due":
         from .scheduler import publish_due
         publish_due(a.dry_run)
+    elif a.cmd == "rerender":
+        return _rerender(a.ids)
+    elif a.cmd == "frame":
+        return _frame(a.url, a.at)
     elif a.cmd == "status":
         return _status()
     elif a.cmd == "doctor":
