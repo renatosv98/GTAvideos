@@ -47,6 +47,7 @@ schedule:
 platforms:
   youtube:
     enabled: true
+    channel_id: UCtEupstFEid-N-o_STg64gg   # uploads are refused if the authorised account is a different channel
     category_id: "20"       # Gaming
     default_tags: ["GTA6", "GTA 6", "Grand Theft Auto VI", "Shorts"]
     made_for_kids: false

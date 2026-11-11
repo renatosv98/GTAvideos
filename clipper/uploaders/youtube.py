@@ -20,17 +20,43 @@ from googleapiclient.http import MediaFileUpload
 
 from ..config import SECRETS, SETTINGS
 
-SCOPES = ["https://www.googleapis.com/auth/youtube.upload"]
+SCOPES = [
+    "https://www.googleapis.com/auth/youtube.upload",
+    "https://www.googleapis.com/auth/youtube.readonly",  # to confirm which channel we're logged into
+]
 CLIENT = SECRETS / "youtube_client_secret.json"
 TOKEN = SECRETS / "youtube_token.json"
+
+
+def _authorised_channel(creds: Credentials) -> tuple[str, str]:
+    yt = build("youtube", "v3", credentials=creds, cache_discovery=False)
+    items = yt.channels().list(part="snippet", mine=True).execute().get("items", [])
+    if not items:
+        raise RuntimeError("This Google account has no YouTube channel.")
+    return items[0]["id"], items[0]["snippet"]["title"]
+
+
+def _check_channel(creds: Credentials) -> None:
+    expected = SETTINGS["platforms"]["youtube"].get("channel_id")
+    cid, title = _authorised_channel(creds)
+    if expected and cid != expected:
+        raise RuntimeError(
+            f"Logged into channel '{title}' ({cid}) but settings.yaml expects {expected}. "
+            "Run `clipper auth youtube` again and pick the right channel in the Google account chooser."
+        )
 
 
 def auth() -> None:
     if not CLIENT.exists():
         raise SystemExit(f"Missing {CLIENT}. See the docstring in clipper/uploaders/youtube.py.")
-    creds = InstalledAppFlow.from_client_secrets_file(str(CLIENT), SCOPES).run_local_server(port=0)
+    creds = InstalledAppFlow.from_client_secrets_file(str(CLIENT), SCOPES).run_local_server(
+        port=0, prompt="select_account consent")
+    cid, title = _authorised_channel(creds)
+    expected = SETTINGS["platforms"]["youtube"].get("channel_id")
+    if expected and cid != expected:
+        raise SystemExit(f"⛔ You picked '{title}' ({cid}), not {expected}. Run again and choose the right channel.")
     TOKEN.write_text(creds.to_json())
-    print(f"Saved {TOKEN}")
+    print(f"✅ Authorised as '{title}' ({cid}). Saved {TOKEN}")
 
 
 def _creds() -> Credentials:
@@ -45,7 +71,9 @@ def _creds() -> Credentials:
 
 def upload(path: Path, title: str, description: str, publish_at: datetime | None) -> str:
     cfg = SETTINGS["platforms"]["youtube"]
-    yt = build("youtube", "v3", credentials=_creds(), cache_discovery=False)
+    creds = _creds()
+    _check_channel(creds)
+    yt = build("youtube", "v3", credentials=creds, cache_discovery=False)
     if "#shorts" not in (title + description).lower():
         description = f"{description}\n#Shorts"
     status = {"selfDeclaredMadeForKids": cfg.get("made_for_kids", False)}
