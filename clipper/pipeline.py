@@ -49,7 +49,7 @@ def process(url: str, creator_id: str | None = None) -> list[int]:
                 cur = conn.execute(
                     "INSERT INTO clips (stream_id, start, end, score, title, caption, hashtags, reason, risk_notes, words_json, edit_json)"
                     " VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-                    (stream_id, p["start"], p["end"], p["virality"], p["title"], p["caption"],
+                    (stream_id, p["start"], p["end"], p["viral_chance"], p["title"], p["caption"],
                      " ".join(h if h.startswith("#") else f"#{h}" for h in p["hashtags"]),
                      p["reason"], p["risk_notes"], json.dumps(p["words"]),
                      json.dumps({"cuts": p.get("cuts"), "hook": p.get("hook")})),
@@ -67,7 +67,7 @@ def process(url: str, creator_id: str | None = None) -> list[int]:
                 conn.execute("UPDATE clips SET path=?, status=?, review_notes=? WHERE id=?",
                              (str(path) if path else None, status, err, clip_id))
             clip_ids.append(clip_id)
-            print(f"    #{clip_id} [{p['virality']}/10] {p['title']}")
+            print(f"    #{clip_id} [{p['viral_chance']}% viral chance] {p['title']}")
 
         with db.connect() as conn:
             conn.execute("UPDATE streams SET status='rendered' WHERE id=?", (stream_id,))

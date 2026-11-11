@@ -7,7 +7,7 @@ from flask import Flask, abort, redirect, render_template_string, request, send_
 
 from . import db
 from .config import load_creators
-from .scheduler import assign_slot, fmt_local
+from .scheduler import assign_slot, fmt_local, reprioritize
 
 app = Flask(__name__)
 
@@ -40,7 +40,7 @@ button{border:0;border-radius:6px;padding:8px 14px;font-weight:600;cursor:pointe
 {% for c in clips %}
 <form class="card" method="post" action="{{ url_for('decide', clip_id=c.id) }}">
   {% if c.path %}<video src="{{ url_for('video', clip_id=c.id) }}" controls preload="metadata"></video>{% endif %}
-  <div class="meta">#{{c.id}} · {{creators.get(c.creator_id, c.creator_id)}} · {{'%.0f'|format(c.end-c.start)}}s · virality {{c.score}}/10
+  <div class="meta">#{{c.id}} · {{creators.get(c.creator_id, c.creator_id)}} · {{'%.0f'|format(c.end-c.start)}}s · <b>{{c.score|int if c.score is not none else '?'}}% viral chance</b>
    {% if c.slot_at %}· slot {{ fmt_local(c.slot_at) }}{% endif %}</div>
   <p class="meta">{{c.reason}}</p>
   <p class="risk">⚠ Risk: {{c.risk_notes}}</p>
@@ -67,7 +67,7 @@ def index():
     with db.connect() as conn:
         clips = conn.execute(
             "SELECT clips.*, streams.creator_id FROM clips JOIN streams ON streams.id = clips.stream_id "
-            "WHERE clips.status = ? ORDER BY COALESCE(slot_at, ''), score DESC, clips.id", (status,)
+            "WHERE clips.status = ? ORDER BY COALESCE(slot_at, ''), score DESC NULLS LAST, clips.id", (status,)
         ).fetchall()
         counts = dict(conn.execute("SELECT status, COUNT(*) FROM clips GROUP BY status").fetchall())
     creators = {c.id: c.display_name for c in load_creators()}
@@ -95,6 +95,7 @@ def decide(clip_id: int):
             if not all(f.get(f"chk_{k}") for k, _ in CHECKS):
                 abort(400, "Every checklist item must be ticked to approve.")
             conn.execute("UPDATE clips SET status='approved', slot_at=? WHERE id=?", (assign_slot(conn), clip_id))
+            reprioritize(conn)
         elif action == "reject":
             conn.execute("UPDATE clips SET status='rejected', slot_at=NULL WHERE id=?", (clip_id,))
         elif action == "unapprove":

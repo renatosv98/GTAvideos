@@ -27,7 +27,20 @@ Editor's rules:
   screens that drag, and off-topic chatter, but keep silent moments where the action on screen IS the story.
 - hook: 3-8 words burned on screen for the first 3 seconds that create curiosity without spoiling the payoff
   (e.g. "Iba 2º a 10 metros de la meta..."). Same language as the stream.
-- Ideal length 20-40 s of kept footage. Fewer great picks beat many weak ones.
+- Ideal length 20-40 s of kept footage.
+
+Find EVERY candidate that works as a short (several per stream is normal), then rank them.
+viral_chance = your honest estimate (0-100) that the short beats this channel's typical views several times over:
+- 70-90: complete story with a visual payoff anyone gets without sound or context, strong emotional reaction, rewatchable.
+- 40-69: clear payoff and reaction, but slower setup or needs some context.
+- 15-39: funny line or moment, little visual action.
+- <15: don't pick it.
+Be calibrated: most picks land in 20-60; reserve 70+ for moments you'd bet on.
+
+Reference short (scored 80): IlloJuan's GTA 5 triathlon. Hook text "Iba 2º a 10 metros de la meta...". He sprints for 2nd
+yelling "me va a dar un infarto", his character collapses face-first from exhaustion metres from the line, others overtake,
+he finishes 5th, rage, then cut straight to the results screen + facepalm: "28 minutos tirados a la basura... qué loco, tío".
+Why it works: stakes are obvious in 2 s, the visual fail needs no explanation, the reaction is the payoff, dead air cut, ends on a laugh.
 
 Write a punchy title (max 70 chars, no clickbait lies), a short caption, and 3-6 hashtags.
 In risk_notes, flag anything that could cause a copyright claim or policy problem: in-game radio or licensed music audible, background music on stream, other people's content on screen (videos, TikToks, other streamers), slurs, personal info, or anything else. Write "none" if clean."""
@@ -47,14 +60,14 @@ PICK_SCHEMA = {
                         "type": "object", "properties": {"start": {"type": "number"}, "end": {"type": "number"}},
                         "required": ["start", "end"], "additionalProperties": False}},
                     "hook": {"type": "string"},
-                    "virality": {"type": "integer", "description": "1-10"},
+                    "viral_chance": {"type": "integer", "description": "estimated % chance (0-100) of going viral"},
                     "title": {"type": "string"},
                     "caption": {"type": "string"},
                     "hashtags": {"type": "array", "items": {"type": "string"}},
                     "reason": {"type": "string"},
                     "risk_notes": {"type": "string"},
                 },
-                "required": ["candidate_id", "start", "end", "keep_segments", "hook", "virality", "title", "caption", "hashtags", "reason", "risk_notes"],
+                "required": ["candidate_id", "start", "end", "keep_segments", "hook", "viral_chance", "title", "caption", "hashtags", "reason", "risk_notes"],
                 "additionalProperties": False,
             },
         }
@@ -82,7 +95,7 @@ def analyze(video: Path, title: str, creator: Creator, candidates: list[Candidat
         "text": f"Stream: \"{title}\" by {creator.display_name}.\n"
                 f"Write title, caption and hashtags in {creator.language} (the language of the stream); "
                 f"keep 'GTA 6' / '#GTA6' as is.\n"
-                f"Return up to {cfg['max_clips']} picks, best first, each {cfg['min_seconds']}-{cfg['max_seconds']} seconds long.",
+                f"Return up to {cfg['max_clips']} picks, highest viral_chance first, each {cfg['min_seconds']}-{cfg['max_seconds']} seconds long.",
     }]
     words_by_id: dict[int, list[dict]] = {}
     cache_file = Path(video).parent / "transcripts.json"
@@ -137,4 +150,5 @@ def analyze(video: Path, title: str, creator: Creator, candidates: list[Candidat
         p.update(start=segs[0][0], end=segs[-1][1], cuts=[list(x) for x in segs],
                  words=[w for w in words_by_id[c.idx] if start <= w["s"] < end])
         cleaned.append(p)
+    cleaned.sort(key=lambda p: p["viral_chance"], reverse=True)  # most likely to go viral first
     return cleaned[: cfg["max_clips"]]

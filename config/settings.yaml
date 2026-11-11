@@ -5,7 +5,7 @@ download:
   chat: true                # pull YouTube live-chat replay when available
 
 highlights:
-  candidates: 20            # loudest/hypest windows sent to Claude
+  candidates: 30            # loudest/hypest windows sent to Claude
   min_gap_seconds: 120      # peaks closer than this are merged
   window_before: 45         # seconds of context before a peak
   window_after: 30
@@ -23,10 +23,10 @@ transcription:
 analysis:
   model: claude-opus-5-5
   effort: medium
-  max_clips: 6              # clips kept per stream
+  max_clips: 8              # clips kept per stream
   min_seconds: 15
   max_seconds: 45
-  frames_per_candidate: 2   # still frames sent to Claude per candidate (0 = text only)
+  frames_per_candidate: 3   # still frames sent to Claude per candidate (0 = text only)
 
 render:
   layout: facecam           # facecam = streamer's camera top + gameplay bottom; stack = gameplay top + your content bottom; blur = gameplay over blurred background

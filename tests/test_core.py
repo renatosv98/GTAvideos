@@ -61,3 +61,17 @@ def test_jump_cuts_remap_words():
     out = remap_words(words, segs)
     assert [w["w"] for w in out] == ["a", "b"]
     assert out[1]["s"] == 11  # 31 - 30 + 10s of first segment
+
+
+def test_reprioritize_puts_most_viral_first(tmp_path, monkeypatch):
+    import sqlite3
+    from clipper import db, scheduler
+    conn = sqlite3.connect(tmp_path / "t.db"); conn.row_factory = sqlite3.Row; conn.executescript(db.SCHEMA)
+    conn.execute("INSERT INTO streams (id, url, creator_id) VALUES (1, 'u', 'x')")
+    for cid, slot, score in [(1, "2026-11-20T00:00:00+00:00", 30), (2, "2026-11-20T04:00:00+00:00", 80),
+                             (3, "2026-11-20T08:00:00+00:00", 55)]:
+        conn.execute("INSERT INTO clips (id, stream_id, start, end, score, status, slot_at) VALUES (?,1,0,1,?,'approved',?)",
+                     (cid, score, slot))
+    scheduler.reprioritize(conn)
+    order = [r["id"] for r in conn.execute("SELECT id FROM clips ORDER BY slot_at")]
+    assert order == [2, 3, 1]

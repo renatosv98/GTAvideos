@@ -53,6 +53,19 @@ def assign_slot(conn: sqlite3.Connection) -> str:
     return candidate.isoformat()
 
 
+def reprioritize(conn: sqlite3.Connection) -> None:
+    """Re-deal the open slots so the highest viral-chance clip always goes out next.
+    Clips already uploaded somewhere (e.g. scheduled on YouTube) keep their slot."""
+    rows = conn.execute(
+        "SELECT id, slot_at, score FROM clips WHERE status='approved' AND slot_at IS NOT NULL "
+        "AND id NOT IN (SELECT clip_id FROM uploads WHERE status IN ('scheduled','published'))"
+    ).fetchall()
+    slots = sorted(r["slot_at"] for r in rows)
+    ranked = sorted(rows, key=lambda r: (-(r["score"] or 0), r["id"]))
+    for r, slot in zip(ranked, slots):
+        conn.execute("UPDATE clips SET slot_at=? WHERE id=?", (slot, r["id"]))
+
+
 def _record(conn, clip_id, platform, status, remote_id=None, url=None, error=None):
     conn.execute(
         "INSERT INTO uploads (clip_id, platform, remote_id, url, status, error) VALUES (?,?,?,?,?,?) "
@@ -110,6 +123,7 @@ def publish_due(dry_run: bool = False) -> None:
     creators = {c.id: c for c in load_creators()}
 
     with db.connect() as conn:
+        reprioritize(conn)
         clips = conn.execute(
             "SELECT clips.*, streams.creator_id FROM clips JOIN streams ON streams.id = clips.stream_id "
             "WHERE clips.status = 'approved' AND slot_at IS NOT NULL ORDER BY slot_at"
