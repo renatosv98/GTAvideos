@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Login</title>
+<style>
+body{font:16px/1.6 -apple-system,system-ui,sans-serif;max-width:680px;margin:40px auto;padding:0 16px;color:#111;background:#fff}
+textarea{width:100%;box-sizing:border-box;font:13px monospace}
+button{font:600 18px system-ui;padding:12px 24px;margin:12px 0;border:0;border-radius:8px;background:#333;color:#fff;cursor:pointer}
+.bad{color:#b00020}
+</style>
+</head><body>
+<div id="ok" hidden>
+<h1>Almost done</h1>
+<p>Click the button, then paste into Terminal after <b>Redirected URL:</b> and press Enter.</p>
+<button id="b">Copy link</button> <span id="done"></span>
+<textarea id="u" rows="5" readonly></textarea>
+</div>
+<div id="err" hidden>
+<h1 class="bad">The platform didn't send a login code</h1>
+<p id="msg"></p>
+<p>Go back to Terminal, run the <code>clipper auth …</code> command again and open the <b>new</b> link it prints.</p>
+</div>
+<script>
+var q=new URLSearchParams(location.search);
+if(q.get('code')){
+  document.getElementById('ok').hidden=false;
+  var t=document.getElementById('u');t.value=location.href;
+  document.getElementById('b').onclick=function(){
+    t.select();
+    (navigator.clipboard?navigator.clipboard.writeText(location.href):Promise.reject()).catch(function(){document.execCommand('copy')});
+    document.getElementById('done').textContent='✅ Copied';
+  };
+}else{
+  document.getElementById('err').hidden=false;
+  document.getElementById('msg').textContent=q.get('error')?('Error: '+q.get('error')+' '+(q.get('error_description')||'')):'This page was opened directly, not after logging in.';
+}
+</script>
+</body></html>

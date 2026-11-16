@@ -120,6 +120,10 @@ def publish_now(clip_id: int, platform: str) -> int:
             from .uploaders import tiktok
             rid = tiktok.upload(Path(clip["path"]), _short_caption(clip))
             url = None
+        elif platform == "instagram":
+            from .uploaders import instagram
+            rid = instagram.upload(Path(clip["path"]), _short_caption(clip))
+            url = instagram.permalink(rid)
         else:
             from .uploaders import youtube
             rid = youtube.upload(Path(clip["path"]), clip["title"], _description(clip, creator), None)
@@ -129,7 +133,7 @@ def publish_now(clip_id: int, platform: str) -> int:
         return 1
     with db.connect() as conn:
         _record(conn, clip_id, platform, "published", rid, url)
-    print(f"✅ Sent ({rid}). " + ("Check your TikTok inbox/drafts." if platform == "tiktok" else url))
+    print(f"✅ Sent ({rid}). " + ("Check your TikTok inbox/drafts." if platform == "tiktok" else url or ""))
     return 0
 
 
@@ -202,10 +206,23 @@ def _publish_due(dry_run: bool = False) -> None:
                     with db.connect() as conn:
                         _record(conn, clip["id"], "tiktok", "failed", error=str(e))
 
+        if plat.get("instagram", {}).get("enabled") and (clip["id"], "instagram") not in done and slot <= now:
+            print(f"#{clip['id']} -> Instagram")
+            if not dry_run:
+                from .uploaders import instagram
+                try:
+                    mid = instagram.upload(Path(clip["path"]), _short_caption(clip))
+                    with db.connect() as conn:
+                        _record(conn, clip["id"], "instagram", "published", mid, instagram.permalink(mid))
+                except Exception as e:
+                    print(f"   Instagram failed: {e}")
+                    with db.connect() as conn:
+                        _record(conn, clip["id"], "instagram", "failed", error=str(e))
+
         if slot <= now and not dry_run:
             with db.connect() as conn:
                 ok = {r["platform"] for r in conn.execute(
                     "SELECT platform FROM uploads WHERE clip_id=? AND status IN ('scheduled','published')", (clip["id"],))}
-                need = {p for p in ("youtube", "tiktok") if plat[p]["enabled"]}
+                need = {p for p in ("youtube", "tiktok", "instagram") if plat.get(p, {}).get("enabled")}
                 if need <= ok:
                     conn.execute("UPDATE clips SET status='published' WHERE id=?", (clip["id"],))

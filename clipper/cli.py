@@ -132,7 +132,7 @@ def main(argv: list[str] | None = None) -> int:
 
     s = sub.add_parser("publish-now", help="upload one approved clip immediately (skips its slot)")
     s.add_argument("id", type=int)
-    s.add_argument("--platform", choices=["tiktok", "youtube"], default="tiktok")
+    s.add_argument("--platform", choices=["tiktok", "youtube", "instagram"], default="tiktok")
 
     s = sub.add_parser("music", help="background music library")
     s.add_argument("action", choices=["download", "list"])
@@ -141,7 +141,7 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("doctor", help="check setup")
 
     s = sub.add_parser("auth", help="authorise an upload platform")
-    s.add_argument("platform", choices=["youtube", "tiktok"])
+    s.add_argument("platform", choices=["youtube", "tiktok", "instagram"])
 
     a = p.parse_args(argv)
 
@@ -199,6 +199,8 @@ def main(argv: list[str] | None = None) -> int:
     elif a.cmd == "auth":
         if a.platform == "youtube":
             from .uploaders.youtube import auth
+        elif a.platform == "instagram":
+            from .uploaders.instagram import auth
         else:
             from .uploaders.tiktok import auth
         auth()
