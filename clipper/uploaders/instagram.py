@@ -102,8 +102,24 @@ def auth() -> None:
 
 
 def _system_user() -> bool:
-    """Unified login (newer Meta apps): a never-expiring system-user token + the Instagram account ID in .env."""
-    return bool(os.environ.get("INSTAGRAM_ACCESS_TOKEN"))
+    """A Facebook-type token in .env (system user, never expires) -> graph.facebook.com.
+    Instagram-type tokens (start with "IG", from the app dashboard's "Generate token") go through the normal
+    token file instead, so they get refreshed before their 60-day expiry."""
+    t = os.environ.get("INSTAGRAM_ACCESS_TOKEN", "")
+    return bool(t) and not t.startswith("IG")
+
+
+def _import_dashboard_token() -> None:
+    """First use of an Instagram token pasted into .env: store it in the token file (that's where refreshes go)."""
+    t = os.environ.get("INSTAGRAM_ACCESS_TOKEN", "")
+    if not t.startswith("IG"):
+        return
+    old = json.loads(TOKEN.read_text()) if TOKEN.exists() else {}
+    if old.get("imported") == t[-12:]:
+        return  # already imported (maybe refreshed since)
+    me = _me(t)
+    _save({"access_token": t, "expires_in": 60 * 86400, "user_id": str(me.get("user_id") or _env("INSTAGRAM_USER_ID")),
+           "username": me.get("username", ""), "imported": t[-12:]})
 
 
 def _host() -> str:
@@ -116,6 +132,7 @@ def _token() -> dict:
         me = _check(requests.get(f"{_host()}/{_v()}/{uid}", params={"fields": "username", "access_token": token},
                                  timeout=30), "account info")
         return {"access_token": token, "user_id": uid, "username": me.get("username", "")}
+    _import_dashboard_token()
     if not TOKEN.exists():
         raise RuntimeError("Not authorised. Run `clipper auth instagram`.")
     tok = json.loads(TOKEN.read_text())
