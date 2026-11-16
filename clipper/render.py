@@ -147,7 +147,9 @@ def _music_lufs(track: Path) -> float:
 
 
 def render_clip(source: Path, start: float, end: float, words: list[dict], creator: Creator, out_dir: Path,
-                cuts: list | None = None, hook: str | None = None, music: Path | None = None) -> Path:
+                cuts: list | None = None, hook: str | None = None, music: Path | None = None,
+                facecam: dict | None = None) -> Path:
+    """facecam: camera box for this clip; None = creator default from creators.yaml; {} = no camera (blur layout)."""
     cfg = SETTINGS["render"]
     W, H = cfg["width"], cfg["height"]
     segs = plan_segments(start, end, cuts)
@@ -190,11 +192,11 @@ def render_clip(source: Path, start: float, end: float, words: list[dict], creat
 
     inputs = ["-ss", f"{start:.3f}", "-t", f"{end - start:.3f}", "-i", str(source)]  # full span; cuts trim it
     layout = cfg.get("layout", "stack")
-    if layout == "facecam" and not creator.facecam:
-        print(f"    no facecam position for {creator.id} in creators.yaml; using blur layout")
+    fc = creator.facecam if facecam is None else facecam
+    if layout == "facecam" and not fc:
+        print(f"    no streamer camera in this clip; using blur layout")
         layout = "blur"
     if layout == "facecam":
-        fc = creator.facecam
         top_h = cfg.get("facecam_height", 840)
         bot_h = H - top_h
         cx = cfg.get("crop_center_x", 0.5)

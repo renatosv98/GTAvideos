@@ -12,6 +12,7 @@ from pathlib import Path
 from .. import db, music
 from ..config import DATA, Creator
 from ..render import render_clip
+from . import facecam
 
 
 def recent_tracks(n: int = 6) -> list[str]:
@@ -26,10 +27,19 @@ def produce(clip_id: int, video: Path, creator: Creator) -> Path:
     with db.connect() as conn:
         r = conn.execute("SELECT * FROM clips WHERE id=?", (clip_id,)).fetchone()
     edit = json.loads(r["edit_json"] or "{}")
+    if "facecam" not in edit:  # streamers move their camera between scenes: find it for this clip
+        try:
+            edit["facecam"] = facecam.detect(video, r["start"], r["end"])
+            print(f"    #{clip_id} camera: {edit['facecam'] or 'none (no face panel)'}")
+        except Exception as e:  # fall back to the creator's usual position
+            print(f"    #{clip_id} camera detection failed ({e}); using creators.yaml position")
+            edit["facecam"] = None
+        with db.connect() as conn:
+            conn.execute("UPDATE clips SET edit_json=? WHERE id=?", (json.dumps(edit, ensure_ascii=False), clip_id))
     track = music.track_file(edit["music"]) if edit.get("music") else None
     return render_clip(video, r["start"], r["end"], json.loads(r["words_json"] or "[]"), creator,
                        DATA / "clips" / f"{clip_id:05d}", cuts=edit.get("cuts"), hook=edit.get("hook"),
-                       music=track if track and track.exists() else None)
+                       music=track if track and track.exists() else None, facecam=edit.get("facecam"))
 
 
 def run(stream_id: int, video: Path, creator: Creator, picks: list[dict]) -> list[int]:

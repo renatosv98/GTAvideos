@@ -173,7 +173,7 @@ def _publish_due(dry_run: bool = False) -> None:
         done = {(r["clip_id"], r["platform"]) for r in conn.execute(
             "SELECT clip_id, platform FROM uploads WHERE status IN ('scheduled','published')")}
 
-    tiktok_full = False
+    tiktok_full = yt_full = False
     for clip in clips:
         slot = _parse(clip["slot_at"])
         creator = creators.get(clip["creator_id"])
@@ -185,7 +185,7 @@ def _publish_due(dry_run: bool = False) -> None:
             continue
         desc = _description(clip, creator)
 
-        if plat["youtube"]["enabled"] and (clip["id"], "youtube") not in done and slot - now <= ahead:
+        if plat["youtube"]["enabled"] and not yt_full and (clip["id"], "youtube") not in done and slot - now <= ahead:
             publish_at = slot if slot > now + timedelta(minutes=15) else None
             print(f"#{clip['id']} -> YouTube ({'scheduled ' + fmt_local(clip['slot_at']) if publish_at else 'now'})")
             if not dry_run:
@@ -196,9 +196,14 @@ def _publish_due(dry_run: bool = False) -> None:
                         _record(conn, clip["id"], "youtube", "scheduled" if publish_at else "published",
                                 vid, f"https://youtube.com/shorts/{vid}")
                 except Exception as e:
-                    print(f"   YouTube failed: {e}")
-                    with db.connect() as conn:
-                        _record(conn, clip["id"], "youtube", "failed", error=str(e))
+                    if "uploadLimitExceeded" in str(e):
+                        # new channels have a daily upload cap; the clip stays queued and is retried next run
+                        print("   YouTube daily upload limit reached; will retry later")
+                        yt_full = True
+                    else:
+                        print(f"   YouTube failed: {e}")
+                        with db.connect() as conn:
+                            _record(conn, clip["id"], "youtube", "failed", error=str(e))
 
         if tiktok_full:
             pass
