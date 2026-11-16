@@ -49,23 +49,20 @@ creators:
     vods: "https://www.twitch.tv/rubius/videos?filter=archives&sort=time"
     live: "https://www.twitch.tv/rubius"
 
-  - id: xqc
-    display_name: "xQc"
-    credit: "xQc (kick.com/xqc)"
-    language: English
-    # Measured on his 2026-11-09 GTA V stream (cam middle-left, chat below it). Re-measure if it moves:
-    # `clipper frame <stream-url>`.
-    facecam: {x: 0.003, y: 0.305, w: 0.186, h: 0.258}
+  - id: auronplay
+    display_name: "Auronplay"
+    credit: "Auronplay (twitch.tv/auronplay)"
+    language: Spanish
+    # no fixed facecam: the producer detects his camera in every clip
     match:
-      - "twitch.tv/xqc"
-      - "kick.com/xqc"
+      - "twitch.tv/auronplay"
+      - "auronplay"
     permission:
       granted: true
-      source: "Publicly allows clipping/reuploading of his streams (added by channel owner, 2026-11-11)"
-      evidence: ""      # TODO: paste a link to his statement allowing clips
+      source: "Allows clipping of his streams (added by channel owner, 2026-11-16)"
+      evidence: ""      # TODO: paste a link/screenshot of where he says clipping is allowed
       terms: ""
     links:
-      description: "Full stream: https://kick.com/xqc"
-    vods: "https://kick.com/xqc/videos"
-    live: "https://kick.com/xqc"
-    keywords: ["gta", "grand theft auto", "nopixel"]   # his titles are long lists; only take ones naming GTA
+      description: "Directo completo: https://twitch.tv/auronplay"
+    vods: "https://www.twitch.tv/auronplay/videos?filter=archives&sort=time"
+    live: "https://www.twitch.tv/auronplay"
