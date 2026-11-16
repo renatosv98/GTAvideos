@@ -75,6 +75,8 @@ def run(stream_id: int, video: Path, creator: Creator, picks: list[dict]) -> lis
 
 def auto_approve_active() -> bool:
     until = SETTINGS.get("autopilot", {}).get("auto_approve_until")
+    if str(until).lower() == "always":
+        return True
     return bool(until) and date.today() <= date.fromisoformat(str(until))
 
 

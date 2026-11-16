@@ -80,7 +80,7 @@ platforms:
     staging_release: ig-staging
 
 autopilot:                       # `clipper autopilot` (launchd, every 3 h)
-  auto_approve_until: "2026-11-23"   # week 1: clips that pass QA are scheduled without your review; after this date they wait in `clipper review`
+  auto_approve_until: always    # owner decision 16 Nov: clips that pass QA are always scheduled without review ("YYYY-MM-DD" to limit)
   min_viral_chance: 30           # don't auto-approve clips the selector rates below this
   max_streams_per_run: 2
   keep_streams: 2                # delete older downloaded recordings (clips are already rendered)
