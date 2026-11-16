@@ -70,6 +70,7 @@ platforms:
     username: gtauploadsx   # posting is refused if the authorised TikTok account is different
     mode: inbox             # inbox = sends to your TikTok drafts (works before audit); direct = publish (needs audited app)
     privacy_level: PUBLIC_TO_EVERYONE
+    long_cut: true          # also render a 61-90 s TikTok version when the moment supports it (Creator Rewards: 1 min+)
     extra_scopes: []        # add video.list once it's enabled in the TikTok portal (view counts for the analyst)
   instagram:
     enabled: true           # Reels via GitHub staging (temporary release file, deleted after each post)

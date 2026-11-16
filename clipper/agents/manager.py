@@ -143,7 +143,7 @@ def _split(text: str) -> tuple[str, str]:
 
 def _ok_pairs() -> set[tuple[int, str]]:
     return {(r["clip_id"], r["platform"]) for r in _q(
-        "SELECT clip_id, platform FROM uploads WHERE status IN ('scheduled','published')")}
+        "SELECT clip_id, platform FROM uploads WHERE status IN ('scheduled','published','inbox')")}
 
 
 def reconcile() -> list[str]:
@@ -204,6 +204,8 @@ def publication_table() -> str:
             u = ups.get((c["id"], p))
             if u and u["status"] in ("scheduled", "published"):
                 cells.append(u["status"])
+            elif u and u["status"] == "inbox":
+                cells.append(f"TikTok draft since {u['created_at'][5:16]} (owner must tap Post)")
             elif u and u["status"] == "failed":
                 gave_up = " (gave up)" if (u["attempts"] or 0) >= MAX_ATTEMPTS else ""
                 cells.append(f"FAILED x{u['attempts']}{gave_up}: {(u['error'] or '')[:60]}")

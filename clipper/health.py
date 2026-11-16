@@ -48,7 +48,7 @@ def check() -> list[tuple[str, str]]:
             "SELECT id, slot_at, title FROM clips WHERE status IN ('approved','published') AND slot_at IS NOT NULL"
         ).fetchall()
         ups = conn.execute("SELECT clip_id, platform, status, remote_id, error FROM uploads").fetchall()
-    ok = {(u["clip_id"], u["platform"]) for u in ups if u["status"] in ("scheduled", "published")}
+    ok = {(u["clip_id"], u["platform"]) for u in ups if u["status"] in ("scheduled", "published", "inbox")}
 
     # 1. every clip whose slot has passed must be on every enabled platform
     missing: dict[str, list[int]] = {}
@@ -65,6 +65,18 @@ def check() -> list[tuple[str, str]]:
         else:
             msg = f"{len(ids)} clip(s) missing on {p}: #{', #'.join(map(str, ids))}. {last_err[:120]}"
         problems.append((f"missing-{p}", msg))
+
+    # 1b. TikTok drafts waiting for the owner to tap Post
+    from datetime import timezone as _tz
+    waiting = [u for u in ups if u["platform"] == "tiktok" and u["status"] == "inbox"]
+    with db.connect() as conn:
+        created = {r["clip_id"]: r["created_at"] for r in conn.execute(
+            "SELECT clip_id, created_at FROM uploads WHERE platform='tiktok' AND status='inbox'")}
+    old = [u["clip_id"] for u in waiting
+           if now - datetime.fromisoformat(created[u["clip_id"]]).replace(tzinfo=_tz.utc) > timedelta(hours=12)]
+    if old:
+        problems.append(("tiktok-inbox", f"TikTok drafts waiting over 12 h: #{', #'.join(map(str, old))}. Open TikTok "
+                                         "→ Inbox → System notifications → tap each → Next → Post."))
 
     # 2. YouTube: scheduled videos must actually go public, and none may be rejected/failed
     if "youtube" in platforms:

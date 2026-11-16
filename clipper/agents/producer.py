@@ -14,7 +14,7 @@ from .. import db, music
 from ..config import DATA, SETTINGS, Creator
 from ..scheduler import assign_slot, reprioritize
 from ..render import render_clip
-from . import facecam, qa
+from . import facecam, guidance, qa
 
 
 def recent_tracks(n: int = 6) -> list[str]:
@@ -106,6 +106,11 @@ def check_and_approve(clip_id: int, creator: Creator) -> str:
                          "VALUES ('producer','selector',?,'qa_fail',?)", (clip_id, f"Rejected '{clip['title']}': {why}"))
             print(f"    #{clip_id} QA ❌ {why}")
             return "rejected"
+    if SETTINGS["platforms"]["tiktok"].get("long_cut", True):
+        try:
+            tiktok_cut(clip_id, creator)
+        except Exception as e:
+            print(f"    #{clip_id} TikTok cut failed ({e}); TikTok gets the short version")
     try:  # growth agent writes per-platform title/description/hashtags before anything is published
         from . import growth
         growth.package(clip_id)
@@ -120,3 +125,58 @@ def check_and_approve(clip_id: int, creator: Creator) -> str:
             return "approved"
     print(f"    #{clip_id} QA ✅ waiting for your review")
     return "rendered"
+
+
+# ------------------------------------------------------------ 60-90 s TikTok cut (Creator Rewards pays only 1 min+)
+
+TIKTOK_PLAN = {
+    "type": "object",
+    "properties": {
+        "worth_it": {"type": "boolean"},
+        "keep_segments": {"type": "array", "items": {"type": "array", "items": {"type": "number"}}},
+        "reason": {"type": "string"},
+    },
+    "required": ["worth_it", "keep_segments", "reason"], "additionalProperties": False,
+}
+
+
+def tiktok_cut(clip_id: int, creator: Creator) -> Path | None:
+    """Render a 61-90 s version of the clip for TikTok (more setup/context, same payoff), if the moment supports it
+    without padding. Saved next to the short as tiktok.mp4; the publisher uses it for TikTok only."""
+    from .. import llm
+    from .transcriber import phrases, words_between
+    with db.connect() as conn:
+        r = dict(conn.execute("SELECT c.*, s.video_path FROM clips c JOIN streams s ON s.id=c.stream_id "
+                              "WHERE c.id=?", (clip_id,)).fetchone())
+    if not r["video_path"] or not Path(r["video_path"]).exists():
+        return None
+    report = Path(r["video_path"]).parent / "report.json"
+    if not report.exists():
+        return None
+    words = json.loads(report.read_text())["words"]
+    edit = json.loads(r["edit_json"] or "{}")
+    a, b = max(0.0, r["start"] - 75), r["end"] + 30
+    lines = "\n".join(f"[{s:.1f}-{e:.1f}] {t}" for s, e, t in phrases(words_between(words, a, b)))
+    plan = llm.ask_json(
+        "You are a short-form video editor making the TikTok version of a clip: 61-90 seconds of KEPT footage "
+        "(TikTok's Creator Rewards only pays on videos of 1 minute or more)." + guidance.brief("producer"), (
+            f"The short version keeps {edit.get('cuts') or [[r['start'], r['end']]]} (absolute seconds) and is about: "
+            f"{r['title']} (hook: {edit.get('hook')}).\nTranscript around it:\n{lines}\n\n"
+            "Plan the TikTok cut: keep_segments in order (absolute seconds, inside the transcript range) totalling "
+            "61-90 s. Add setup/context BEFORE the payoff and a longer reaction after, cut dead air, keep it a story; "
+            "the first seconds must still hook. If reaching 61 s needs boring padding, set worth_it=false."),
+        TIKTOK_PLAN, effort="low")
+    segs = [s for s in plan["keep_segments"] if len(s) == 2 and s[1] > s[0]]
+    total = sum(e - s for s, e in segs)
+    if not plan["worth_it"] or not 61 <= total <= 95:
+        print(f"    #{clip_id} no TikTok long cut ({plan['reason'][:100]})")
+        return None
+    track = music.track_file(edit["music"]) if edit.get("music") else None
+    build = DATA / "clips" / f"{clip_id:05d}" / "tiktok_build"
+    out = render_clip(Path(r["video_path"]), segs[0][0], segs[-1][1], words_between(words, segs[0][0], segs[-1][1]),
+                      creator, build, cuts=segs, hook=edit.get("hook"),
+                      music=track if track and track.exists() else None, facecam=edit.get("facecam"))
+    final = DATA / "clips" / f"{clip_id:05d}" / "tiktok.mp4"
+    out.replace(final)
+    print(f"    #{clip_id} TikTok cut: {total:.0f} s")
+    return final

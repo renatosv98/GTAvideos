@@ -100,6 +100,58 @@ def sync_youtube_schedule() -> list[str]:
     return out
 
 
+TIKTOK_INBOX_MAX = 5  # TikTok refuses new drafts while ~5 are waiting unposted
+
+
+def _tiktok_status() -> str:
+    return "inbox" if SETTINGS["platforms"]["tiktok"].get("mode", "direct") == "inbox" else "published"
+
+
+def _tiktok_inbox_count() -> int:
+    with db.connect() as conn:
+        return conn.execute("SELECT COUNT(*) FROM uploads WHERE platform='tiktok' AND status='inbox'").fetchone()[0]
+
+
+def _tiktok_file(clip) -> Path:
+    """The 60-90 s TikTok cut when the producer made one (Creator Rewards pays only on 1 min+), else the short."""
+    long = Path(clip["path"]).with_name("tiktok.mp4")
+    return long if long.exists() else Path(clip["path"])
+
+
+def tiktok_watch() -> list[str]:
+    """Follow every TikTok draft: posted -> 'published' (+ link); failed/expired -> 'failed' so it's re-sent once."""
+    if not SETTINGS["platforms"]["tiktok"].get("enabled"):
+        return []
+    with db.connect() as conn:
+        rows = conn.execute("SELECT clip_id, remote_id FROM uploads WHERE platform='tiktok' AND status='inbox'").fetchall()
+    if not rows:
+        return []
+    from .uploaders import tiktok
+    token = tiktok._token()
+    out = []
+    for r in rows:
+        try:
+            st = tiktok._post("/post/publish/status/fetch/", token, {"publish_id": r["remote_id"]})
+        except Exception as e:
+            if "not_found" in str(e) or "invalid" in str(e):
+                with db.connect() as conn:
+                    _record(conn, r["clip_id"], "tiktok", "failed", r["remote_id"], error=f"draft gone: {e}")
+                out.append(f"#{r['clip_id']} TikTok draft expired; will be sent again")
+            continue
+        if st.get("status") == "PUBLISH_COMPLETE":
+            vid = (st.get("publicaly_available_post_id") or [None])[0]
+            user = SETTINGS["platforms"]["tiktok"].get("username", "")
+            url = f"https://www.tiktok.com/@{user}/video/{vid}" if vid else None
+            with db.connect() as conn:
+                _record(conn, r["clip_id"], "tiktok", "published", r["remote_id"], url)
+            out.append(f"#{r['clip_id']} posted on TikTok")
+        elif st.get("status") == "FAILED":
+            with db.connect() as conn:
+                _record(conn, r["clip_id"], "tiktok", "failed", r["remote_id"], error=st.get("fail_reason"))
+            out.append(f"#{r['clip_id']} TikTok draft failed ({st.get('fail_reason')}); will be sent again")
+    return out
+
+
 def _record(conn, clip_id, platform, status, remote_id=None, url=None, error=None):
     conn.execute(
         "INSERT INTO uploads (clip_id, platform, remote_id, url, status, error) VALUES (?,?,?,?,?,?) "
@@ -177,7 +229,7 @@ def publish_now(clip_id: int, platform: str) -> int:
     try:
         if platform == "tiktok":
             from .uploaders import tiktok
-            rid = tiktok.upload(Path(clip["path"]), _short_caption(clip, creator, "tiktok"))
+            rid = tiktok.upload(_tiktok_file(clip), _short_caption(clip, creator, "tiktok"))
             url = None
         elif platform == "instagram":
             from .uploaders import instagram
@@ -191,7 +243,7 @@ def publish_now(clip_id: int, platform: str) -> int:
         print(f"❌ {e}")
         return 1
     with db.connect() as conn:
-        _record(conn, clip_id, platform, "published", rid, url)
+        _record(conn, clip_id, platform, _tiktok_status() if platform == "tiktok" else "published", rid, url)
     print(f"✅ Sent ({rid}). " + ("Check your TikTok inbox/drafts." if platform == "tiktok" else url or ""))
     return 0
 
@@ -209,6 +261,11 @@ def publish_due(dry_run: bool = False) -> None:
             print("Another publish run is in progress; skipping this one.")
             return
         if not dry_run:
+            try:
+                for m in tiktok_watch():
+                    print(m)
+            except Exception as e:
+                print(f"TikTok draft check failed: {e}")
             try:
                 for m in sync_youtube_schedule():
                     print(m)
@@ -236,14 +293,14 @@ def _publish_due(dry_run: bool = False) -> None:
             "WHERE clips.status IN ('approved','published') AND slot_at IS NOT NULL ORDER BY slot_at"
         ).fetchall()
         done = {(r["clip_id"], r["platform"]) for r in conn.execute(
-            "SELECT clip_id, platform FROM uploads WHERE status IN ('scheduled','published') "
+            "SELECT clip_id, platform FROM uploads WHERE status IN ('scheduled','published','inbox') "
             "OR (status='failed' AND attempts >= ?)", (MAX_ATTEMPTS,))}
 
     tiktok_full = yt_full = False
     with db.connect() as conn:  # catch-up posts (clip's slot long past): at most one per platform every 3 h
         recent = {r["platform"] for r in conn.execute(
             "SELECT DISTINCT platform FROM uploads WHERE created_at > datetime('now','-3 hours') "
-            "AND status IN ('scheduled','published')")}
+            "AND status IN ('scheduled','published','inbox')")}
     for clip in clips:
         slot = _parse(clip["slot_at"])
         late = slot < now - timedelta(hours=2)
@@ -279,14 +336,15 @@ def _publish_due(dry_run: bool = False) -> None:
         if tiktok_full:
             pass
         elif (plat["tiktok"]["enabled"] and (clip["id"], "tiktok") not in done and slot <= now
+              and _tiktok_inbox_count() < TIKTOK_INBOX_MAX
               and not (late and "tiktok" in recent)):
             print(f"#{clip['id']} -> TikTok")
             if not dry_run:
                 from .uploaders import tiktok
                 try:
-                    pid = tiktok.upload(Path(clip["path"]), _short_caption(clip, creator, "tiktok"))
+                    pid = tiktok.upload(_tiktok_file(clip), _short_caption(clip, creator, "tiktok"))
                     with db.connect() as conn:
-                        _record(conn, clip["id"], "tiktok", "published", pid)
+                        _record(conn, clip["id"], "tiktok", _tiktok_status(), pid)
                     recent.add("tiktok")
                 except Exception as e:
                     if "too_many_pending" in str(e):
@@ -316,7 +374,8 @@ def _publish_due(dry_run: bool = False) -> None:
         if slot <= now and not dry_run:
             with db.connect() as conn:
                 ok = {r["platform"] for r in conn.execute(
-                    "SELECT platform FROM uploads WHERE clip_id=? AND status IN ('scheduled','published')", (clip["id"],))}
+                    "SELECT platform FROM uploads WHERE clip_id=? AND status IN ('scheduled','published','inbox')",
+                    (clip["id"],))}
                 need = {p for p in ("youtube", "tiktok", "instagram") if plat.get(p, {}).get("enabled")}
                 if need <= ok:
                     conn.execute("UPDATE clips SET status='published' WHERE id=?", (clip["id"],))
