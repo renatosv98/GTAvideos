@@ -162,11 +162,12 @@ def _publish_due(dry_run: bool = False) -> None:
         reprioritize(conn)
         clips = conn.execute(
             "SELECT clips.*, streams.creator_id FROM clips JOIN streams ON streams.id = clips.stream_id "
-            "WHERE clips.status = 'approved' AND slot_at IS NOT NULL ORDER BY slot_at"
+            "WHERE clips.status IN ('approved','published') AND slot_at IS NOT NULL ORDER BY slot_at"
         ).fetchall()
         done = {(r["clip_id"], r["platform"]) for r in conn.execute(
             "SELECT clip_id, platform FROM uploads WHERE status IN ('scheduled','published')")}
 
+    tiktok_full = False
     for clip in clips:
         slot = _parse(clip["slot_at"])
         creator = creators.get(clip["creator_id"])
@@ -193,7 +194,9 @@ def _publish_due(dry_run: bool = False) -> None:
                     with db.connect() as conn:
                         _record(conn, clip["id"], "youtube", "failed", error=str(e))
 
-        if plat["tiktok"]["enabled"] and (clip["id"], "tiktok") not in done and slot <= now:
+        if tiktok_full:
+            pass
+        elif plat["tiktok"]["enabled"] and (clip["id"], "tiktok") not in done and slot <= now:
             print(f"#{clip['id']} -> TikTok")
             if not dry_run:
                 from .uploaders import tiktok
@@ -202,9 +205,14 @@ def _publish_due(dry_run: bool = False) -> None:
                     with db.connect() as conn:
                         _record(conn, clip["id"], "tiktok", "published", pid)
                 except Exception as e:
-                    print(f"   TikTok failed: {e}")
-                    with db.connect() as conn:
-                        _record(conn, clip["id"], "tiktok", "failed", error=str(e))
+                    if "too_many_pending" in str(e):
+                        # TikTok allows only ~5 unposted drafts; wait until the owner posts some, retry next run
+                        print("   TikTok inbox full (post your drafts in the app); will retry")
+                        tiktok_full = True
+                    else:
+                        print(f"   TikTok failed: {e}")
+                        with db.connect() as conn:
+                            _record(conn, clip["id"], "tiktok", "failed", error=str(e))
 
         if plat.get("instagram", {}).get("enabled") and (clip["id"], "instagram") not in done and slot <= now:
             print(f"#{clip['id']} -> Instagram")

@@ -22,6 +22,7 @@ from ..config import SECRETS, SETTINGS
 
 API = "https://open.tiktokapis.com/v2"
 TOKEN = SECRETS / "tiktok_token.json"
+MB = 1024 * 1024
 
 
 def _env(k: str) -> str:
@@ -110,7 +111,10 @@ def upload(path: Path, title: str) -> str:
     if expected and (u := _username(token)).lower() != expected.lower():
         raise RuntimeError(f"Authorised TikTok account is @{u}, expected @{expected}. Run `clipper auth tiktok`.")
     size = path.stat().st_size
-    source = {"source": "FILE_UPLOAD", "video_size": size, "chunk_size": size, "total_chunk_count": 1}
+    # TikTok rules: < 5 MB = one chunk; otherwise chunks of 5-64 MB, the last one absorbs the remainder.
+    chunk = size if size < 10 * MB else 5 * MB
+    count = max(1, size // chunk)
+    source = {"source": "FILE_UPLOAD", "video_size": size, "chunk_size": chunk, "total_chunk_count": count}
 
     if cfg.get("mode", "direct") == "inbox":
         data = _post("/post/publish/inbox/video/init/", token, {"source_info": source})
@@ -127,11 +131,26 @@ def upload(path: Path, title: str) -> str:
         })
 
     with open(path, "rb") as f:
-        r = requests.put(data["upload_url"], data=f, timeout=600, headers={
-            "Content-Type": "video/mp4", "Content-Length": str(size),
-            "Content-Range": f"bytes 0-{size - 1}/{size}",
-        })
-    r.raise_for_status()
+        for i in range(count):
+            start = i * chunk
+            end = size if i == count - 1 else start + chunk
+            f.seek(start)
+            part = f.read(end - start)
+            for attempt in range(4):  # TikTok's upload host sometimes drops connections; retry the piece
+                try:
+                    r = requests.put(data["upload_url"], data=part, timeout=(30, 300), headers={
+                        "Content-Type": "video/mp4", "Content-Length": str(len(part)),
+                        "Content-Range": f"bytes {start}-{end - 1}/{size}",
+                    })
+                    if r.status_code < 500:
+                        r.raise_for_status()
+                        break
+                    err = f"HTTP {r.status_code}"
+                except requests.ConnectionError as e:
+                    err = str(e)
+                if attempt == 3:
+                    raise RuntimeError(f"TikTok upload failed on part {i + 1}/{count}: {err}")
+                time.sleep(10 * (attempt + 1))
 
     publish_id = data["publish_id"]
     for _ in range(60):
