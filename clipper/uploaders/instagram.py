@@ -8,6 +8,9 @@ put INSTAGRAM_APP_ID / INSTAGRAM_APP_SECRET / INSTAGRAM_REDIRECT_URI in .env -> 
 While the app is in development mode it can only post to accounts with a role on the app,
 which is exactly our case (our own account), so no Meta app review is needed.
 Long-lived tokens last 60 days; this module refreshes them automatically when older than 7 days.
+
+Newer Meta apps only get "Unified login": then put a system-user token (never expires) in .env as
+INSTAGRAM_ACCESS_TOKEN plus INSTAGRAM_USER_ID (the Instagram account ID), and no `clipper auth` is needed.
 """
 from __future__ import annotations
 
@@ -98,7 +101,21 @@ def auth() -> None:
     print(f"✅ Authorised as @{me.get('username')}. Saved {TOKEN}")
 
 
+def _system_user() -> bool:
+    """Unified login (newer Meta apps): a never-expiring system-user token + the Instagram account ID in .env."""
+    return bool(os.environ.get("INSTAGRAM_ACCESS_TOKEN"))
+
+
+def _host() -> str:
+    return "https://graph.facebook.com" if _system_user() else GRAPH
+
+
 def _token() -> dict:
+    if _system_user():
+        token, uid = _env("INSTAGRAM_ACCESS_TOKEN"), _env("INSTAGRAM_USER_ID")
+        me = _check(requests.get(f"{_host()}/{_v()}/{uid}", params={"fields": "username", "access_token": token},
+                                 timeout=30), "account info")
+        return {"access_token": token, "user_id": uid, "username": me.get("username", "")}
     if not TOKEN.exists():
         raise RuntimeError("Not authorised. Run `clipper auth instagram`.")
     tok = json.loads(TOKEN.read_text())
@@ -121,7 +138,7 @@ def upload(path: Path, caption: str) -> str:
     if expected and tok.get("username", "").lower() != expected.lower():
         raise RuntimeError(f"Authorised Instagram account is @{tok.get('username')}, expected @{expected}.")
 
-    container = _check(requests.post(f"{GRAPH}/{_v()}/{uid}/media", data={
+    container = _check(requests.post(f"{_host()}/{_v()}/{uid}/media", data={
         "media_type": "REELS", "upload_type": "resumable", "caption": caption[:2200],
         "share_to_feed": "true", "access_token": token,
     }, timeout=60), "create container")
@@ -134,7 +151,7 @@ def upload(path: Path, caption: str) -> str:
                "video upload")
 
     for _ in range(120):  # Instagram transcodes the video; usually under a minute
-        st = _check(requests.get(f"{GRAPH}/{_v()}/{cid}", params={"fields": "status_code,status",
+        st = _check(requests.get(f"{_host()}/{_v()}/{cid}", params={"fields": "status_code,status",
                                                                    "access_token": token}, timeout=30), "status")
         if st.get("status_code") == "FINISHED":
             break
@@ -144,7 +161,7 @@ def upload(path: Path, caption: str) -> str:
     else:
         raise RuntimeError("Instagram is still processing the video after 10 min; try again later.")
 
-    pub = _check(requests.post(f"{GRAPH}/{_v()}/{uid}/media_publish",
+    pub = _check(requests.post(f"{_host()}/{_v()}/{uid}/media_publish",
                                data={"creation_id": cid, "access_token": token}, timeout=60), "publish")
     return pub["id"]
 
@@ -152,7 +169,7 @@ def upload(path: Path, caption: str) -> str:
 def permalink(media_id: str) -> str | None:
     try:
         tok = _token()
-        return _check(requests.get(f"{GRAPH}/{_v()}/{media_id}", params={
+        return _check(requests.get(f"{_host()}/{_v()}/{media_id}", params={
             "fields": "permalink", "access_token": tok["access_token"]}, timeout=30), "permalink").get("permalink")
     except Exception:
         return None
