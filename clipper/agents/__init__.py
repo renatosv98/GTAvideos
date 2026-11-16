@@ -5,4 +5,5 @@
 3 producer:    clip plans -> finished vertical shorts
 4 publisher:   approved shorts -> YouTube / TikTok / Instagram on a flexible schedule
 5 analyst:     published shorts' stats -> playbook updates for the selector (Claude)
+6. growth: weekly review of the YouTube/TikTok/Instagram profiles -> ready-to-paste recommendations.
 """

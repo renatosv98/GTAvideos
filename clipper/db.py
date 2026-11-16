@@ -70,6 +70,9 @@ def connect() -> Iterator[sqlite3.Connection]:
     cols = {r[1] for r in conn.execute("PRAGMA table_info(clips)")}
     if "edit_json" not in cols:  # {"cuts": [[start, end], ...], "hook": "..."}
         conn.execute("ALTER TABLE clips ADD COLUMN edit_json TEXT")
+    ucols = {r[1] for r in conn.execute("PRAGMA table_info(uploads)")}
+    if "attempts" not in ucols:  # failed tries; the publisher gives up at MAX_ATTEMPTS until the manager resets it
+        conn.execute("ALTER TABLE uploads ADD COLUMN attempts INTEGER DEFAULT 0")
     try:
         yield conn
         conn.commit()

@@ -13,6 +13,7 @@ import json
 import subprocess
 from datetime import datetime, timezone
 
+from .guidance import brief
 from .. import db, llm
 from ..config import DATA, ROOT
 
@@ -134,7 +135,7 @@ def run(force: bool = False) -> int:
         human = [r["message"] for r in conn.execute(
             "SELECT message FROM agent_feedback WHERE from_agent IN ('reviewer','user') ORDER BY id DESC LIMIT 20")]
     current = PLAYBOOK.read_text() if PLAYBOOK.exists() else "(empty)"
-    r = llm.ask_json(SYSTEM, (
+    r = llm.ask_json(SYSTEM + brief("analyst"), (
         f"# Current playbook\n{current}\n\n"
         f"# Owner's notes on clips (always respect these)\n" + ("\n".join(f"- {m}" for m in human) or "(none)") +
         f"\n\n# Performance of every published short (one JSON per line, best first)\n{_table(stats)}\n\n"

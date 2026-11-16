@@ -69,7 +69,8 @@ def _creds() -> Credentials:
     return creds
 
 
-def upload(path: Path, title: str, description: str, publish_at: datetime | None) -> str:
+def upload(path: Path, title: str, description: str, publish_at: datetime | None,
+           tags: list[str] | None = None) -> str:
     cfg = SETTINGS["platforms"]["youtube"]
     creds = _creds()
     _check_channel(creds)
@@ -85,7 +86,7 @@ def upload(path: Path, title: str, description: str, publish_at: datetime | None
         "snippet": {
             "title": title[:100],
             "description": description[:5000],
-            "tags": cfg.get("default_tags", []),
+            "tags": list(dict.fromkeys([*cfg.get("default_tags", []), *(t.lstrip("#") for t in (tags or []))]))[:30],
             "categoryId": cfg.get("category_id", "20"),
         },
         "status": status,

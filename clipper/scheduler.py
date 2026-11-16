@@ -66,11 +66,15 @@ def reprioritize(conn: sqlite3.Connection) -> None:
         conn.execute("UPDATE clips SET slot_at=? WHERE id=?", (slot, r["id"]))
 
 
+MAX_ATTEMPTS = 5  # after this many failures the publisher stops; the manager decides (retry or escalate)
+
+
 def _record(conn, clip_id, platform, status, remote_id=None, url=None, error=None):
     conn.execute(
         "INSERT INTO uploads (clip_id, platform, remote_id, url, status, error) VALUES (?,?,?,?,?,?) "
         "ON CONFLICT(clip_id, platform) DO UPDATE SET remote_id=excluded.remote_id, url=excluded.url, "
-        "status=excluded.status, error=excluded.error",
+        "status=excluded.status, error=excluded.error, "
+        "attempts=CASE WHEN excluded.status='failed' THEN COALESCE(uploads.attempts,0)+1 ELSE uploads.attempts END",
         (clip_id, platform, remote_id, url, status, error),
     )
 
@@ -84,20 +88,44 @@ def _music_credit(clip) -> str | None:
     return music.credit(track) if track else None
 
 
+def _pack(clip) -> dict:
+    """Per-platform title/caption/hashtags written by the growth agent before publishing (empty if none)."""
+    import json
+    return (json.loads(clip["edit_json"] or "{}").get("packaging") or {}) if "edit_json" in clip.keys() else {}
+
+
+def _tags(tags) -> str:
+    return " ".join(t if t.startswith("#") else f"#{t}" for t in (tags or []))
+
+
+def _yt_title(clip) -> str:
+    return (_pack(clip).get("youtube_title") or clip["title"])[:100]
+
+
+def _yt_tags(clip) -> list[str]:
+    return _pack(clip).get("youtube_tags") or []
+
+
 def _description(clip, creator) -> str:
-    parts = [clip["caption"] or "", ""]
-    parts.append(f"Clip from {creator.credit}.")
+    pk = _pack(clip)
+    parts = [pk.get("youtube_description") or clip["caption"] or "", ""]
+    parts.append(f"Clip from {creator.credit}.")  # credit lines are always added by code, never left to an agent
     if creator.links.get("description"):
         parts.append(creator.links["description"])
     if mc := _music_credit(clip):
         parts.append(mc)
-    parts += ["", clip["hashtags"] or ""]
+    parts += ["", _tags(pk.get("youtube_hashtags")) or clip["hashtags"] or ""]
     return "\n".join(parts).strip()
 
 
-def _short_caption(clip) -> str:
-    """TikTok/Instagram caption: title + hashtags + music credit."""
-    text = f"{clip['title']} {clip['hashtags'] or ''}".strip()
+def _short_caption(clip, creator=None, platform: str = "tiktok") -> str:
+    """TikTok/Instagram caption: growth agent's caption + hashtags (or title + hashtags), creator + music credit."""
+    pk = _pack(clip)
+    body = pk.get(f"{platform}_caption")
+    tags = _tags(pk.get(f"{platform}_hashtags")) if body else ""
+    text = f"{body}\n\n{tags}".strip() if body else f"{clip['title']} {clip['hashtags'] or ''}".strip()
+    if creator:
+        text += f"\n🎥 {creator.credit}"
     return f"{text}\n{mc}" if (mc := _music_credit(clip)) else text
 
 
@@ -118,15 +146,15 @@ def publish_now(clip_id: int, platform: str) -> int:
     try:
         if platform == "tiktok":
             from .uploaders import tiktok
-            rid = tiktok.upload(Path(clip["path"]), _short_caption(clip))
+            rid = tiktok.upload(Path(clip["path"]), _short_caption(clip, creator, "tiktok"))
             url = None
         elif platform == "instagram":
             from .uploaders import instagram
-            rid = instagram.upload(Path(clip["path"]), _short_caption(clip))
+            rid = instagram.upload(Path(clip["path"]), _short_caption(clip, creator, "instagram"))
             url = instagram.permalink(rid)
         else:
             from .uploaders import youtube
-            rid = youtube.upload(Path(clip["path"]), clip["title"], _description(clip, creator), None)
+            rid = youtube.upload(Path(clip["path"]), _yt_title(clip), _description(clip, creator), None, _yt_tags(clip))
             url = f"https://youtube.com/shorts/{rid}"
     except Exception as e:
         print(f"❌ {e}")
@@ -171,7 +199,8 @@ def _publish_due(dry_run: bool = False) -> None:
             "WHERE clips.status IN ('approved','published') AND slot_at IS NOT NULL ORDER BY slot_at"
         ).fetchall()
         done = {(r["clip_id"], r["platform"]) for r in conn.execute(
-            "SELECT clip_id, platform FROM uploads WHERE status IN ('scheduled','published')")}
+            "SELECT clip_id, platform FROM uploads WHERE status IN ('scheduled','published') "
+            "OR (status='failed' AND attempts >= ?)", (MAX_ATTEMPTS,))}
 
     tiktok_full = yt_full = False
     with db.connect() as conn:  # catch-up posts (clip's slot long past): at most one per platform every 3 h
@@ -196,7 +225,7 @@ def _publish_due(dry_run: bool = False) -> None:
             if not dry_run:
                 from .uploaders import youtube
                 try:
-                    vid = youtube.upload(Path(clip["path"]), clip["title"], desc, publish_at)
+                    vid = youtube.upload(Path(clip["path"]), _yt_title(clip), desc, publish_at, _yt_tags(clip))
                     with db.connect() as conn:
                         _record(conn, clip["id"], "youtube", "scheduled" if publish_at else "published",
                                 vid, f"https://youtube.com/shorts/{vid}")
@@ -218,7 +247,7 @@ def _publish_due(dry_run: bool = False) -> None:
             if not dry_run:
                 from .uploaders import tiktok
                 try:
-                    pid = tiktok.upload(Path(clip["path"]), _short_caption(clip))
+                    pid = tiktok.upload(Path(clip["path"]), _short_caption(clip, creator, "tiktok"))
                     with db.connect() as conn:
                         _record(conn, clip["id"], "tiktok", "published", pid)
                     recent.add("tiktok")
@@ -238,7 +267,7 @@ def _publish_due(dry_run: bool = False) -> None:
             if not dry_run:
                 from .uploaders import instagram
                 try:
-                    mid = instagram.upload(Path(clip["path"]), _short_caption(clip))
+                    mid = instagram.upload(Path(clip["path"]), _short_caption(clip, creator, "instagram"))
                     with db.connect() as conn:
                         _record(conn, clip["id"], "instagram", "published", mid, instagram.permalink(mid))
                     recent.add("instagram")

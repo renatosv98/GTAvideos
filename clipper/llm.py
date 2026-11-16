@@ -41,8 +41,9 @@ def claude_binary() -> str:
 
 
 def ask_json(system: str, prompt: str, schema: dict, images: list[Path] | None = None,
-             model: str | None = None, effort: str | None = None) -> dict[str, Any]:
-    """Send a prompt (+ optional images) and get back JSON matching `schema`."""
+             model: str | None = None, effort: str | None = None, web: bool = False) -> dict[str, Any]:
+    """Send a prompt (+ optional images) and get back JSON matching `schema`.
+    web=True lets Claude search and read the web first (market/trend research; Claude Code backend only)."""
     cfg = _cfg()
     model = model or cfg.get("model", "claude-opus-5-5")
     effort = effort or cfg.get("effort", "medium")
@@ -52,7 +53,7 @@ def ask_json(system: str, prompt: str, schema: dict, images: list[Path] | None =
         try:
             if backend == "api":
                 return _api(system, prompt, schema, images or [], model, effort)
-            return _claude_code(system, prompt, schema, images or [], model, effort)
+            return _claude_code(system, prompt, schema, images or [], model, effort, web)
         except LLMError as e:
             if attempt == tries:
                 raise
@@ -62,7 +63,7 @@ def ask_json(system: str, prompt: str, schema: dict, images: list[Path] | None =
     raise AssertionError("unreachable")
 
 
-def _claude_code(system, prompt, schema, images, model, effort) -> dict:
+def _claude_code(system, prompt, schema, images, model, effort, web=False) -> dict:
     with tempfile.TemporaryDirectory(prefix="clipper-llm-") as tmp:
         tmpd = Path(tmp)
         names = []
@@ -76,8 +77,9 @@ def _claude_code(system, prompt, schema, images, model, effort) -> dict:
         cmd = [claude_binary(), "-p", "--output-format", "json", "--json-schema", json.dumps(schema),
                "--model", model, "--effort", effort, "--system-prompt", system,
                "--no-session-persistence", "--strict-mcp-config", "--setting-sources", "",
-               "--max-turns", str(len(names) + 5)]
-        cmd += ["--tools", "Read", "--allowedTools", "Read"] if names else ["--tools", ""]
+               "--max-turns", str(len(names) + (40 if web else 5))]
+        tools = (["Read"] if names else []) + (["WebSearch", "WebFetch"] if web else [])
+        cmd += ["--tools", ",".join(tools), "--allowedTools", ",".join(tools)] if tools else ["--tools", ""]
         env = {k: v for k, v in os.environ.items() if k != "ANTHROPIC_API_KEY"}  # force subscription login
         proc = subprocess.run(cmd, input=prompt, capture_output=True, text=True, cwd=tmpd, env=env,
                               timeout=int(_cfg().get("timeout_seconds", 1800)))

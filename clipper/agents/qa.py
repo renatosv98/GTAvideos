@@ -9,6 +9,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+from .guidance import brief
 from .. import llm
 
 SYSTEM = ("You are the quality checker of a GTA shorts channel. You see frames of a finished vertical short "
@@ -44,7 +45,7 @@ def review(short: Path, clip: dict, transcript: str, existing_titles: list[str],
     with tempfile.TemporaryDirectory() as d:
         frames = _frames(Path(short), Path(d))
         existing = "\n".join(f"- {t}" for t in existing_titles) or "(none)"
-        return llm.ask_json(SYSTEM, (
+        return llm.ask_json(SYSTEM + brief("producer"), (
             f"Check this short ({language}). Frames are at 8%, 35%, 62% and 90% of the video.\n\n"
             f"Title: {clip['title']}\nCaption: {clip['caption']}\nHook (shown first 3.5 s): {clip.get('hook')}\n"
             f"What the speaker says: {transcript[:2500]}\n\n"

@@ -15,6 +15,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+from .guidance import brief
 from .. import db
 from ..config import ROOT, SETTINGS, Creator
 from ..llm import ask_json
@@ -155,7 +156,7 @@ def scout(report: dict, creator: Creator) -> list[dict]:
               f"Shortlist up to {cfg['shortlist']} moments that could become great shorts. Give each a window "
               f"(start/end seconds, 30-120 s wide) that contains the full setup and payoff. "
               f"Don't only follow the markers: quiet stories and reveals can be great too.\n\n{timeline(report)}")
-    return ask_json(RULES, prompt, SCOUT_SCHEMA)["moments"][: cfg["shortlist"]]
+    return ask_json(RULES + brief("selector", with_feedback=False), prompt, SCOUT_SCHEMA)["moments"][: cfg["shortlist"]]
 
 
 def edit(video: Path, report: dict, creator: Creator, moments: list[dict]) -> list[dict[str, Any]]:
@@ -187,7 +188,7 @@ def edit(video: Path, report: dict, creator: Creator, moments: list[dict]) -> li
             f"videos on screen, slurs, personal info), or \"none\".\n"
             f"Skip moments that don't work. Return up to {cfg['max_clips']} picks, highest viral_chance first.\n\n"
             + "\n\n".join(parts))
-        picks = ask_json(RULES, prompt, EDIT_SCHEMA, images=images)["picks"]
+        picks = ask_json(RULES + brief("selector", with_feedback=False), prompt, EDIT_SCHEMA, images=images)["picks"]
 
     cleaned = []
     for p in picks:

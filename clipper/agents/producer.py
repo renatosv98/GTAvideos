@@ -104,6 +104,12 @@ def check_and_approve(clip_id: int, creator: Creator) -> str:
                          "VALUES ('producer','selector',?,'qa_fail',?)", (clip_id, f"Rejected '{clip['title']}': {why}"))
             print(f"    #{clip_id} QA ❌ {why}")
             return "rejected"
+    try:  # growth agent writes per-platform title/description/hashtags before anything is published
+        from . import growth
+        growth.package(clip_id)
+    except Exception as e:
+        print(f"    #{clip_id} packaging failed ({e}); publisher will use the selector's text")
+    with db.connect() as conn:
         if auto_approve_active() and (clip["score"] or 0) >= cfg.get("min_viral_chance", 30):
             conn.execute("UPDATE clips SET status='approved', review_notes='auto-approved (QA passed)', slot_at=? "
                          "WHERE id=?", (assign_slot(conn), clip_id))

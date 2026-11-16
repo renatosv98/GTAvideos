@@ -74,5 +74,27 @@ def run() -> int:
                 analyst.run()
             except Exception:
                 traceback.print_exc()
+        from .agents import growth
+        if growth.due():
+            try:
+                growth.run()
+            except Exception:
+                traceback.print_exc()
+        from .agents import growth as _g, manager
+        if _g.research_due():  # market research (web) every ~3 days, before packaging uses it
+            try:
+                _g.research()
+            except Exception:
+                traceback.print_exc()
+        try:  # every cycle: YouTube status sync + packaging for queued clips
+            for note in manager.reconcile():
+                print(f"  manager: {note}")
+        except Exception:
+            traceback.print_exc()
+        if manager.due():  # last: reviews what everyone else just did
+            try:
+                manager.run()
+            except Exception:
+                traceback.print_exc()
         health.notify(health.check())
     return 0

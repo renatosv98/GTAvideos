@@ -140,6 +140,8 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("status", help="queue and schedule overview")
     sub.add_parser("autopilot", help="find new streams, make + QA + approve clips, run the analyst (launchd every 3 h)")
     sub.add_parser("discover", help="list new GTA streams the autopilot would process (no download)")
+    sub.add_parser("manager", help="agent 7: review every agent, send feedback, upgrade their instructions")
+    sub.add_parser("growth", help="agent 6: review the three profiles and recommend changes for more awareness")
     s = sub.add_parser("analyze", help="agent 5: collect stats and update the playbook")
     s.add_argument("--force", action="store_true", help="update the playbook even with little data")
     sub.add_parser("health", help="check every clip is live on every platform and the queue is filled")
@@ -209,6 +211,12 @@ def main(argv: list[str] | None = None) -> int:
         for c, u, t in find_new():
             print(f"{c.display_name}: {t[:80]}\n    {u}")
         return 0
+    elif a.cmd == "manager":
+        from .agents.manager import run
+        return run()
+    elif a.cmd == "growth":
+        from .agents.growth import run
+        return run()
     elif a.cmd == "analyze":
         from .agents.analyst import run
         return run(force=a.force)

@@ -9,6 +9,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+from .guidance import brief
 from .. import llm
 
 SYSTEM = ("You locate the streamer's live webcam overlay in screenshots of a livestream. "
@@ -40,7 +41,7 @@ def detect(video: Path, start: float, end: float) -> dict:
     times = [start + span * p for p in (0.15, 0.5, 0.85)]
     with tempfile.TemporaryDirectory() as d:
         frames = _frames(Path(video), times, Path(d))
-        r = llm.ask_json(SYSTEM, (
+        r = llm.ask_json(SYSTEM + brief("producer"), (
             "These are 3 screenshots from the same short clip of a livestream.\n"
             "Find the STREAMER'S FACE ON STREAM: their live webcam (a real person's camera feed, usually a rectangle "
             "in a corner) OR the animated avatar they use instead of a webcam (e.g. a talking cartoon character, "
