@@ -174,8 +174,13 @@ def _publish_due(dry_run: bool = False) -> None:
             "SELECT clip_id, platform FROM uploads WHERE status IN ('scheduled','published')")}
 
     tiktok_full = yt_full = False
+    with db.connect() as conn:  # catch-up posts (clip's slot long past): at most one per platform every 3 h
+        recent = {r["platform"] for r in conn.execute(
+            "SELECT DISTINCT platform FROM uploads WHERE created_at > datetime('now','-3 hours') "
+            "AND status IN ('scheduled','published')")}
     for clip in clips:
         slot = _parse(clip["slot_at"])
+        late = slot < now - timedelta(hours=2)
         creator = creators.get(clip["creator_id"])
         if not creator or not creator.permitted:
             print(f"#{clip['id']}: creator '{clip['creator_id']}' no longer permitted. Skipping.")
@@ -207,7 +212,8 @@ def _publish_due(dry_run: bool = False) -> None:
 
         if tiktok_full:
             pass
-        elif plat["tiktok"]["enabled"] and (clip["id"], "tiktok") not in done and slot <= now:
+        elif (plat["tiktok"]["enabled"] and (clip["id"], "tiktok") not in done and slot <= now
+              and not (late and "tiktok" in recent)):
             print(f"#{clip['id']} -> TikTok")
             if not dry_run:
                 from .uploaders import tiktok
@@ -215,6 +221,7 @@ def _publish_due(dry_run: bool = False) -> None:
                     pid = tiktok.upload(Path(clip["path"]), _short_caption(clip))
                     with db.connect() as conn:
                         _record(conn, clip["id"], "tiktok", "published", pid)
+                    recent.add("tiktok")
                 except Exception as e:
                     if "too_many_pending" in str(e):
                         # TikTok allows only ~5 unposted drafts; wait until the owner posts some, retry next run
@@ -225,7 +232,8 @@ def _publish_due(dry_run: bool = False) -> None:
                         with db.connect() as conn:
                             _record(conn, clip["id"], "tiktok", "failed", error=str(e))
 
-        if plat.get("instagram", {}).get("enabled") and (clip["id"], "instagram") not in done and slot <= now:
+        if (plat.get("instagram", {}).get("enabled") and (clip["id"], "instagram") not in done and slot <= now
+                and not (late and "instagram" in recent)):
             print(f"#{clip['id']} -> Instagram")
             if not dry_run:
                 from .uploaders import instagram
@@ -233,6 +241,7 @@ def _publish_due(dry_run: bool = False) -> None:
                     mid = instagram.upload(Path(clip["path"]), _short_caption(clip))
                     with db.connect() as conn:
                         _record(conn, clip["id"], "instagram", "published", mid, instagram.permalink(mid))
+                    recent.add("instagram")
                 except Exception as e:
                     print(f"   Instagram failed: {e}")
                     with db.connect() as conn:
