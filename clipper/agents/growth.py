@@ -289,7 +289,8 @@ def package(clip_id: int) -> dict:
         f"in the title). Language: {creator.language}.\n"
         f"Selector's title: {c['title']}\nHook on screen: {edit.get('hook')}\nWhy it was picked: {c['reason']}\n"
         f"What is said: {words[:2000]}\n\n# Market brief\n{market[:5000]}\n\n"
-        "Write: youtube_title (<=90 chars, creator name + hook, Spanish, no clickbait lies), youtube_description "
+        "Write: youtube_title (<=90 chars, creator name + hook, Spanish, no clickbait lies, NO disclaimers like "
+        "'clip no oficial' in titles: disclaimers go in descriptions/captions only), youtube_description "
         "(1-2 sentences with search keywords), youtube_hashtags (3, first ones show above the title), "
         "youtube_tags (8-15 search tags), tiktok_caption (1 short line + question/CTA, <=150 chars), "
         "tiktok_hashtags (3-5), instagram_caption (1-2 lines + CTA), instagram_hashtags (3-6). Hashtags without "
@@ -301,6 +302,8 @@ def package(clip_id: int) -> dict:
             "Rewrite this packaging so NOTHING is time-relative (no 'quedan X días', 'hoy', 'mañana', dates, "
             "countdowns): it may be read days later. Keep everything else.\n" + json.dumps(r, ensure_ascii=False)),
             PACK_SCHEMA, effort="low")
+    r["youtube_title"] = __import__("re").sub(r"\s*[\(\[]?\s*clip(s)? no oficial(es)?\s*[\)\]]?", "",
+                                               r["youtube_title"], flags=2).strip()
     edit["packaging"] = {**r, "written_at": datetime.now(timezone.utc).isoformat(), "dated_wording": stale_text(r)}
     with db.connect() as conn:
         conn.execute("UPDATE clips SET edit_json=? WHERE id=?", (json.dumps(edit, ensure_ascii=False), clip_id))
