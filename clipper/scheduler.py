@@ -150,6 +150,12 @@ def publish_due(dry_run: bool = False) -> None:
             print("Another publish run is in progress; skipping this one.")
             return
         _publish_due(dry_run)
+        if not dry_run:
+            try:
+                from . import health
+                health.notify(health.check())
+            except Exception as e:  # the health check must never break publishing
+                print(f"health check failed: {e}")
 
 
 def _publish_due(dry_run: bool = False) -> None:

@@ -138,6 +138,7 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("action", choices=["download", "list"])
 
     sub.add_parser("status", help="queue and schedule overview")
+    sub.add_parser("health", help="check every clip is live on every platform and the queue is filled")
     sub.add_parser("doctor", help="check setup")
 
     s = sub.add_parser("auth", help="authorise an upload platform")
@@ -196,6 +197,9 @@ def main(argv: list[str] | None = None) -> int:
         return _status()
     elif a.cmd == "doctor":
         return _doctor()
+    elif a.cmd == "health":
+        from .health import report
+        return report()
     elif a.cmd == "auth":
         if a.platform == "youtube":
             from .uploaders.youtube import auth
