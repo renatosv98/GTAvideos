@@ -141,6 +141,7 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("autopilot", help="find new streams, make + QA + approve clips, run the analyst (launchd every 3 h)")
     sub.add_parser("discover", help="list new GTA streams the autopilot would process (no download)")
     sub.add_parser("manager", help="agent 7: review every agent, send feedback, upgrade their instructions")
+    sub.add_parser("money", help="agent 8: monetization status, risks and next steps")
     sub.add_parser("growth", help="agent 6: review the three profiles and recommend changes for more awareness")
     s = sub.add_parser("analyze", help="agent 5: collect stats and update the playbook")
     s.add_argument("--force", action="store_true", help="update the playbook even with little data")
@@ -213,6 +214,9 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     elif a.cmd == "manager":
         from .agents.manager import run
+        return run()
+    elif a.cmd == "money":
+        from .agents.monetization import run
         return run()
     elif a.cmd == "growth":
         from .agents.growth import run

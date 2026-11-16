@@ -64,7 +64,8 @@ SCHEMA = {
             "type": "object",
             "properties": {
                 "type": {"type": "string", "enum": ["retry_publish", "hold", "repackage", "run_analyst",
-                                                    "run_growth_review", "run_market_research"]},
+                                                    "run_growth_review", "run_market_research",
+                                                    "run_monetization"]},
                 "clip_id": {"type": "integer"}, "platform": {"type": "string"}, "reason": {"type": "string"},
             },
             "required": ["type", "clip_id", "platform", "reason"], "additionalProperties": False}},
@@ -119,7 +120,8 @@ def _evidence() -> str:
         "\n".join(f"- #{u['clip_id']} {u['platform']}: {(u['error'] or '')[:150]}" for u in fails[:10]) or "(none)")
         + "\nHealth check now:\n" + ("\n".join(f"- {m}" for _, m in health.check()) or "- all good"))
 
-    for name, f in (("analyst", DATA / "analyst_report.md"), ("growth", DATA / "growth_report.md")):
+    for name, f in (("analyst", DATA / "analyst_report.md"), ("growth", DATA / "growth_report.md"),
+                    ("monetization", DATA / "monetization_report.md")):
         parts.append(f"## {name} (latest report)\n" + (f.read_text()[:3500] if f.exists() else "(no report yet)"))
     pb = ROOT / "config" / "playbook.md"
     parts.append("## analyst's playbook (what the selector follows)\n" + (pb.read_text()[:3000] if pb.exists() else ""))
@@ -301,6 +303,10 @@ def _act(actions: list[dict]) -> list[str]:
                 from . import growth
                 growth.run()
                 done.append(f"ran the growth review: {a['reason']}")
+            elif t == "run_monetization":
+                from . import monetization
+                monetization.run()
+                done.append(f"ran the monetization review: {a['reason']}")
             elif t == "run_market_research":
                 from . import growth
                 growth.research()

@@ -17,7 +17,8 @@ AGENTS = {
     "producer": "renders the shorts (camera/avatar detection, layout, captions, music) and runs the QA check",
     "publisher": "posts approved shorts on YouTube, TikTok and Instagram on schedule (no LLM)",
     "analyst": "measures views/likes/comments and rewrites the content playbook",
-    "growth": "reviews the three profiles and recommends changes for more awareness",
+    "growth": "reviews the three profiles, researches trends and writes each clip's title/caption/hashtags",
+    "monetization": "tracks monetization programs and eligibility, flags policy risks, tells the owner when to apply",
 }
 
 

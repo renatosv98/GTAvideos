@@ -99,6 +99,12 @@ def run() -> int:
                 growth.run()
             except Exception:
                 traceback.print_exc()
+        from .agents import monetization
+        if monetization.due():
+            try:
+                monetization.run()
+            except Exception:
+                traceback.print_exc()
         from .agents import growth as _g, manager
         if _g.research_due():  # market research (web) every ~3 days, before packaging uses it
             try:
