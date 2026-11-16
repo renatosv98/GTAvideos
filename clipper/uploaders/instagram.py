@@ -35,7 +35,7 @@ def _cfg() -> dict:
 
 
 def _v() -> str:
-    return _cfg().get("api_version", "v24.0")
+    return _cfg().get("api_version", "v27.0")
 
 
 def _env(k: str) -> str:
@@ -163,7 +163,7 @@ def upload(path: Path, caption: str) -> str:
 
     size = path.stat().st_size
     with open(path, "rb") as f:
-        _check(requests.post(f"https://rupload.facebook.com/ig-api-upload/{_v()}/{cid}", data=f, timeout=600,
+        _check(requests.post(container.get("uri") or f"https://rupload.facebook.com/ig-api-upload/{_v()}/{cid}", data=f, timeout=600,
                              headers={"Authorization": f"OAuth {token}", "offset": "0", "file_size": str(size)}),
                "video upload")
 

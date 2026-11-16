@@ -72,8 +72,8 @@ platforms:
     privacy_level: PUBLIC_TO_EVERYONE
   instagram:
     enabled: false          # switch on after `clipper auth instagram` + one test with publish-now
-    username: ""            # your Instagram handle (no @); posting is refused if the authorised account differs
-    api_version: v24.0
+    username: gtauploadsx   # your Instagram handle (no @); posting is refused if the authorised account differs
+    api_version: v27.0
 
 autopilot:                       # `clipper autopilot` (launchd, every 3 h)
   auto_approve_until: "2026-11-23"   # week 1: clips that pass QA are scheduled without your review; after this date they wait in `clipper review`
