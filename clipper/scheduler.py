@@ -56,9 +56,14 @@ def assign_slot(conn: sqlite3.Connection) -> str:
 def reprioritize(conn: sqlite3.Connection) -> None:
     """Re-deal the open slots so the highest viral-chance clip always goes out next.
     Clips already uploaded somewhere (e.g. scheduled on YouTube) keep their slot."""
+    # Clips only *scheduled* on YouTube can still move if we have YouTube edit permission (sync_youtube_schedule
+    # then moves their publish time); anything already live somewhere keeps its slot.
+    from .uploaders import youtube
+    locked = "('published')" if youtube.can_edit() else "('scheduled','published')"
+    now = datetime.now(UTC).isoformat()
     rows = conn.execute(
-        "SELECT id, slot_at, score FROM clips WHERE status='approved' AND slot_at IS NOT NULL "
-        "AND id NOT IN (SELECT clip_id FROM uploads WHERE status IN ('scheduled','published'))"
+        "SELECT id, slot_at, score FROM clips WHERE status='approved' AND slot_at IS NOT NULL AND slot_at > ? "
+        f"AND id NOT IN (SELECT clip_id FROM uploads WHERE status IN {locked})", (now,)
     ).fetchall()
     slots = sorted(r["slot_at"] for r in rows)
     ranked = sorted(rows, key=lambda r: (-(r["score"] or 0), r["id"]))
@@ -67,6 +72,32 @@ def reprioritize(conn: sqlite3.Connection) -> None:
 
 
 MAX_ATTEMPTS = 5  # after this many failures the publisher stops; the manager decides (retry or escalate)
+
+
+def sync_youtube_schedule() -> list[str]:
+    """Make YouTube's publish time match our slot for clips that are scheduled there (after re-prioritising)."""
+    from .uploaders import youtube
+    if not youtube.can_edit():
+        return []
+    with db.connect() as conn:
+        rows = conn.execute("SELECT u.clip_id, u.remote_id, c.slot_at FROM uploads u JOIN clips c ON c.id=u.clip_id "
+                            "WHERE u.platform='youtube' AND u.status='scheduled' AND c.status='approved'").fetchall()
+    if not rows:
+        return []
+    from googleapiclient.discovery import build
+    yt = build("youtube", "v3", credentials=youtube._creds(), cache_discovery=False)
+    live = {v["id"]: v["status"] for v in yt.videos().list(
+        part="status", id=",".join(r["remote_id"] for r in rows[:50])).execute().get("items", [])}
+    out = []
+    for r in rows:
+        st = live.get(r["remote_id"], {})
+        want = _parse(r["slot_at"])
+        have = st.get("publishAt")
+        if st.get("privacyStatus") == "private" and have and abs((_parse(have.replace("Z", "+00:00")) - want)
+                                                               .total_seconds()) > 60 and want > datetime.now(UTC):
+            youtube.update(r["remote_id"], publish_at=want)
+            out.append(f"#{r['clip_id']} YouTube moved to {fmt_local(r['slot_at'])}")
+    return out
 
 
 def _record(conn, clip_id, platform, status, remote_id=None, url=None, error=None):
@@ -177,6 +208,12 @@ def publish_due(dry_run: bool = False) -> None:
         except BlockingIOError:
             print("Another publish run is in progress; skipping this one.")
             return
+        if not dry_run:
+            try:
+                for m in sync_youtube_schedule():
+                    print(m)
+            except Exception as e:
+                print(f"YouTube schedule sync failed: {e}")
         _publish_due(dry_run)
         if not dry_run:
             try:

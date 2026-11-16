@@ -85,14 +85,91 @@ def _youtube() -> dict[int, dict]:
     return out
 
 
+def _instagram() -> dict[int, dict]:
+    import requests
+
+    from ..uploaders import instagram as ig
+    ups = _q_uploads("instagram")
+    if not ups:
+        return {}
+    tok = ig._token()
+    out = {}
+    for u in ups:
+        base = f"{ig._host()}/{ig._v()}/{u['remote_id']}"
+        d = requests.get(base, params={"fields": "like_count,comments_count", "access_token": tok["access_token"]},
+                         timeout=30).json()
+        views = None
+        for metric in ("views", "plays", "reach"):  # metric names differ between API versions
+            r = requests.get(f"{base}/insights", params={"metric": metric, "access_token": tok["access_token"]},
+                             timeout=30).json()
+            if r.get("data"):
+                views = r["data"][0]["values"][0]["value"]
+                break
+        out[u["clip_id"]] = {"views": views, "likes": d.get("like_count"), "comments": d.get("comments_count")}
+    if out and all(v["views"] is None for v in out.values()):
+        MISSING.append("instagram views: token lacks instagram_manage_insights (likes/comments still counted)")
+    return out
+
+
+def _tiktok() -> dict[int, dict]:
+    """Needs the video.list scope (add it in the TikTok developer portal, then `clipper auth tiktok`)."""
+    import requests
+
+    from ..uploaders import tiktok
+    ups = _q_uploads("tiktok")
+    if not ups:
+        return {}
+    token = tiktok._token()
+    ids = {}
+    for u in ups:  # our upload id -> TikTok's public video id
+        try:
+            st = tiktok._post("/post/publish/status/fetch/", token, {"publish_id": u["remote_id"]})
+            for vid in st.get("publicaly_available_post_id") or []:
+                ids[str(vid)] = u["clip_id"]
+        except Exception:
+            pass
+    if not ids:
+        return {}
+    r = requests.post(f"{tiktok.API}/video/query/?fields=id,view_count,like_count,comment_count,share_count",
+                      headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+                      json={"filters": {"video_ids": list(ids)[:20]}}, timeout=30).json()
+    if r.get("error", {}).get("code", "ok") != "ok":
+        raise RuntimeError(f"TikTok stats unavailable ({r['error'].get('code')}): needs the video.list scope")
+    return {ids[str(v["id"])]: {"views": v.get("view_count"), "likes": v.get("like_count"),
+                                "comments": v.get("comment_count"), "shares": v.get("share_count")}
+            for v in r.get("data", {}).get("videos", [])}
+
+
+def _q_uploads(platform: str) -> list[dict]:
+    with db.connect() as conn:
+        return [dict(r) for r in conn.execute(
+            "SELECT clip_id, remote_id FROM uploads WHERE platform=? AND status='published' AND remote_id IS NOT NULL",
+            (platform,))]
+
+
+MISSING: list[str] = []  # platforms whose stats couldn't be read this run (shown to the analyst)
+
+
 def collect() -> dict[int, dict]:
     stats = _youtube()
+    for d in stats.values():
+        d["by_platform"] = {"youtube": {"views": d["views"], "likes": d["likes"], "comments": d["comments"]}}
+    MISSING.clear()
+    for name, fn in (("instagram", _instagram), ("tiktok", _tiktok)):
+        try:
+            for cid, d in fn().items():
+                if cid in stats:
+                    stats[cid]["by_platform"][name] = d
+        except Exception as e:
+            MISSING.append(f"{name}: {str(e)[:150]}")
     with db.connect() as conn:
         conn.executescript(STATS_SCHEMA)
         for cid, d in stats.items():
-            conn.execute("INSERT INTO stats (clip_id, platform, age_hours, views, likes, comments) "
-                         "VALUES (?,?,?,?,?,?)", (cid, "youtube", d["age_hours"], d["views"], d["likes"],
-                                                  d["comments"]))
+            for plat, x in d["by_platform"].items():
+                conn.execute("INSERT INTO stats (clip_id, platform, age_hours, views, likes, comments) "
+                             "VALUES (?,?,?,?,?,?)", (cid, plat, d["age_hours"], x.get("views"), x.get("likes"),
+                                                      x.get("comments")))
+            d["views"] = sum((x.get("views") or 0) for x in d["by_platform"].values())  # all platforms
     return stats
 
 
@@ -113,7 +190,7 @@ def _table(stats: dict[int, dict]) -> str:
             "clip": cid, "creator": c["creator_id"], "title": c["title"], "hook": edit.get("hook"),
             "predicted_viral_chance": c["score"], "selector_reason": c["reason"],
             "seconds": round(kept, 1) if kept else None, "music_mood": edit.get("music_mood"),
-            "age_hours": d["age_hours"], "views": d["views"], "likes": d["likes"], "comments": d["comments"],
+            "age_hours": d["age_hours"], "views_all_platforms": d["views"], "by_platform": d.get("by_platform"),
             "views_per_hour": round(d["views"] / max(d["age_hours"], 1), 2),
             "first_words": " ".join(w["w"] for w in words[:25]),
             "top_comments": d["top_comments"][:5],
@@ -138,7 +215,8 @@ def run(force: bool = False) -> int:
     r = llm.ask_json(SYSTEM + brief("analyst"), (
         f"# Current playbook\n{current}\n\n"
         f"# Owner's notes on clips (always respect these)\n" + ("\n".join(f"- {m}" for m in human) or "(none)") +
-        f"\n\n# Performance of every published short (one JSON per line, best first)\n{_table(stats)}\n\n"
+        f"\n\n# Performance of every published short (one JSON per line, best first; views per platform in "
+        f"by_platform)\n{_table(stats)}\n\nStats not available this run: {'; '.join(MISSING) or 'none'}\n\n"
         "Tasks:\n"
         "1. summary: 3-5 sentences for the channel owner: what worked, what didn't, how well the predicted viral "
         "chance matched reality.\n"

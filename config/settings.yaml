@@ -70,6 +70,7 @@ platforms:
     username: gtauploadsx   # posting is refused if the authorised TikTok account is different
     mode: inbox             # inbox = sends to your TikTok drafts (works before audit); direct = publish (needs audited app)
     privacy_level: PUBLIC_TO_EVERYONE
+    extra_scopes: []        # add video.list once it's enabled in the TikTok portal (view counts for the analyst)
   instagram:
     enabled: true           # Reels via GitHub staging (temporary release file, deleted after each post)
     username: gtauploadsx   # your Instagram handle (no @); posting is refused if the authorised account differs
@@ -84,3 +85,6 @@ autopilot:                       # `clipper autopilot` (launchd, every 3 h)
   max_streams_per_run: 2
   keep_streams: 2                # delete older downloaded recordings (clips are already rendered)
   min_free_gb: 40                # stop downloading below this much free disk
+  every_hours: 3                 # normal cycle
+  fast_lane: {from: "2026-11-18", to: "2026-11-21", every_hours: 1}   # GTA 6 launch: look for streams hourly
+  stuck_hours: 6                 # alert when a stream sits in one stage longer than this

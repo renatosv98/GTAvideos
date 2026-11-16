@@ -256,6 +256,21 @@ PACK_SCHEMA = {
 }
 
 
+COUNTDOWN = __import__("re").compile(
+    r"\b(quedan?|faltan?|dentro de|en)\s+\d+\s*(d[ií]as?|horas?|semanas?)\b|\b\d+\s*d[ií]as?\b|\bhoy\b|"
+    r"\bmañana\b|\bayer\b|\besta (semana|noche)\b|\b(days?|hours?) (left|to go)\b", 2)
+
+
+def stale_text(pack: dict) -> list[str]:
+    """Time-relative phrases that go out of date between writing and posting."""
+    hits = []
+    for k, v in pack.items():
+        for x in (v if isinstance(v, list) else [v]):
+            if isinstance(x, str) and (m := COUNTDOWN.search(x)):
+                hits.append(f"{k}: '{m.group(0)}'")
+    return hits
+
+
 def package(clip_id: int) -> dict:
     """Write the title, description and hashtags for each platform before the clip is published."""
     with db.connect() as conn:
@@ -280,7 +295,13 @@ def package(clip_id: int) -> dict:
         "tiktok_hashtags (3-5), instagram_caption (1-2 lines + CTA), instagram_hashtags (3-6). Hashtags without "
         "spaces. Never claim to be official. notes: one line on the strategy used."),
         PACK_SCHEMA, effort="low")
-    edit["packaging"] = {**r, "written_at": datetime.now(timezone.utc).isoformat()}
+    if hits := stale_text(r):  # one rewrite without time-relative wording
+        print(f"    #{clip_id} packaging had dated wording ({'; '.join(hits)}); rewriting")
+        r = llm.ask_json(SYSTEM + brief("growth"), (
+            "Rewrite this packaging so NOTHING is time-relative (no 'quedan X días', 'hoy', 'mañana', dates, "
+            "countdowns): it may be read days later. Keep everything else.\n" + json.dumps(r, ensure_ascii=False)),
+            PACK_SCHEMA, effort="low")
+    edit["packaging"] = {**r, "written_at": datetime.now(timezone.utc).isoformat(), "dated_wording": stale_text(r)}
     with db.connect() as conn:
         conn.execute("UPDATE clips SET edit_json=? WHERE id=?", (json.dumps(edit, ensure_ascii=False), clip_id))
     return r

@@ -167,13 +167,21 @@ def reconcile() -> list[str]:
             notes.append(f"could not refresh YouTube status: {e}")
     platforms = [p for p, c in SETTINGS["platforms"].items() if c.get("enabled")]
     ok = _ok_pairs()
-    todo = [c for c in _q("SELECT id, edit_json FROM clips WHERE status IN ('approved','published') ORDER BY slot_at")
-            if any((c["id"], p) not in ok for p in platforms) and not json.loads(c["edit_json"] or "{}").get("packaging")]
+    from .growth import stale_text
+
+    def needs(c) -> bool:  # no packaging yet, or packaging/title with dated wording ('quedan 7 días', 'hoy'...)
+        pk = json.loads(c["edit_json"] or "{}").get("packaging")
+        return not pk or bool(stale_text({k: v for k, v in pk.items() if k != "dated_wording"})) \
+            or bool(stale_text({"title": c["title"]})) and not pk
+
+    todo = [c for c in _q("SELECT id, title, edit_json FROM clips WHERE status IN ('approved','published') "
+                          "ORDER BY slot_at") if any((c["id"], p) not in ok for p in platforms) and needs(c)]
     from . import growth
     for c in todo[:4]:
         try:
             growth.package(c["id"])
-            notes.append(f"packaged #{c['id']} (title/caption/hashtags) before its remaining posts")
+            notes.append(f"packaged #{c['id']} (title/caption/hashtags) before its remaining posts"
+                         + push_youtube_text(c["id"]))
         except Exception as e:
             notes.append(f"packaging #{c['id']} failed: {e}")
     return notes
@@ -224,9 +232,29 @@ def _state() -> str:
         f"- Auto-approve: {'ON until ' + str(until) if auto_approve_active() else 'OFF (owner reviews)'}",
         f"- Posting queue ends at: {q or 'nothing queued'} (UTC). Cadence: 1 clip every 4 h.",
         "- Everything runs on the owner's Mac; while it sleeps nothing uploads except YouTube pre-scheduled posts.",
-        "- YouTube titles/descriptions can't be edited after upload (no permission); repackaging affects only "
-        "platforms not posted yet.",
+        ("- YouTube edit permission: YES (repackage updates YouTube too; hold unschedules it)." if __import__(
+            "clipper.uploaders.youtube", fromlist=["can_edit"]).can_edit() else
+         "- YouTube edit permission: NOT YET (owner must run `clipper auth youtube`); repackaging only affects "
+         "platforms not posted yet."),
     ])
+
+
+def push_youtube_text(cid: int) -> str:
+    """Copy the clip's packaging (title/description/tags) to its YouTube video, if we're allowed to edit."""
+    from ..config import load_creators
+    from ..scheduler import _description, _yt_tags, _yt_title
+    from ..uploaders import youtube
+    yt = _q("SELECT remote_id FROM uploads WHERE clip_id=? AND platform='youtube' AND status IN ('scheduled','published')",
+            cid)
+    if not yt or not youtube.can_edit():
+        return ""
+    with db.connect() as conn:
+        clip = conn.execute("SELECT clips.*, streams.creator_id FROM clips JOIN streams ON streams.id=clips.stream_id "
+                            "WHERE clips.id=?", (cid,)).fetchone()
+    creator = next(c for c in load_creators() if c.id == clip["creator_id"])
+    youtube.update(yt[0]["remote_id"], title=_yt_title(clip), description=_description(clip, creator),
+                   tags=_yt_tags(clip))
+    return " (YouTube title/description updated too)"
 
 
 def _act(actions: list[dict]) -> list[str]:
@@ -246,8 +274,17 @@ def _act(actions: list[dict]) -> list[str]:
                     done.append(f"NOT held #{cid}: already live on {', '.join(r['platform'] for r in live)} "
                                 f"({a['reason']})")
                     continue
-                if _q("SELECT 1 FROM uploads WHERE clip_id=? AND platform='youtube' AND status='scheduled'", cid):
-                    done.append(f"#{cid} is still scheduled on YouTube: owner must delete/privatise it in Studio")
+                yt = _q("SELECT remote_id FROM uploads WHERE clip_id=? AND platform='youtube' AND status='scheduled'", cid)
+                if yt:
+                    from ..uploaders import youtube
+                    if youtube.can_edit():
+                        youtube.update(yt[0]["remote_id"], private=True)
+                        with db.connect() as conn:
+                            conn.execute("UPDATE uploads SET status='deleted' WHERE clip_id=? AND platform='youtube'",
+                                         (cid,))
+                        done.append(f"#{cid} taken off the YouTube schedule (now private)")
+                    else:
+                        done.append(f"#{cid} is still scheduled on YouTube: owner must delete it in Studio")
                 with db.connect() as conn:
                     conn.execute("UPDATE clips SET status='rendered', review_notes=? WHERE id=? AND status='approved'",
                                  (f"held by manager: {a['reason']}", cid))
@@ -255,7 +292,7 @@ def _act(actions: list[dict]) -> list[str]:
             elif t == "repackage":
                 from . import growth
                 growth.package(cid)
-                done.append(f"repackaged #{cid} (platforms not posted yet): {a['reason']}")
+                done.append(f"repackaged #{cid}: {a['reason']}" + push_youtube_text(cid))
             elif t == "run_analyst":
                 from . import analyst
                 analyst.run()

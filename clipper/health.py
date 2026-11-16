@@ -87,7 +87,17 @@ def check() -> list[tuple[str, str]]:
         except Exception as e:
             problems.append(("yt-api", f"Could not check YouTube: {str(e)[:150]}"))
 
-    # 3. the queue must not run dry
+    # 3. no stream may sit in one stage too long (download/transcribe/select/render)
+    stuck_h = float(SETTINGS.get("autopilot", {}).get("stuck_hours", 6))
+    with db.connect() as conn:
+        for st in conn.execute("SELECT id, creator_id, status, created_at FROM streams WHERE status IN "
+                               "('new','downloaded','analyzed')").fetchall():
+            age = now - datetime.fromisoformat(st["created_at"]).replace(tzinfo=timezone.utc)
+            if age > timedelta(hours=stuck_h):
+                problems.append((f"stuck-{st['id']}", f"Stream #{st['id']} ({st['creator_id']}) has been "
+                                 f"'{st['status']}' for {age.total_seconds() / 3600:.0f} h. Check data/logs/autopilot.log."))
+
+    # 4. the queue must not run dry
     future = [datetime.fromisoformat(c["slot_at"]) for c in clips if datetime.fromisoformat(c["slot_at"]) > now]
     last = max(future, default=None)
     if last is None or last - now < LOW_QUEUE:

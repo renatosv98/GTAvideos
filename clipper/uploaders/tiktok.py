@@ -42,6 +42,8 @@ def auth() -> None:
     scope = "user.info.basic,user.info.profile,video.upload"
     if SETTINGS["platforms"]["tiktok"].get("mode") == "direct":
         scope += ",video.publish"
+    for extra in SETTINGS["platforms"]["tiktok"].get("extra_scopes", []):  # e.g. video.list for view counts
+        scope += f",{extra}"
     url = "https://www.tiktok.com/v2/auth/authorize/?" + urllib.parse.urlencode({
         "client_key": _env("TIKTOK_CLIENT_KEY"), "scope": scope, "response_type": "code",
         "redirect_uri": _env("TIKTOK_REDIRECT_URI"), "state": state,

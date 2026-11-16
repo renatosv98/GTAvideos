@@ -23,7 +23,9 @@ from ..config import SECRETS, SETTINGS
 SCOPES = [
     "https://www.googleapis.com/auth/youtube.upload",
     "https://www.googleapis.com/auth/youtube.readonly",  # to confirm which channel we're logged into
+    "https://www.googleapis.com/auth/youtube.force-ssl",  # edit/unschedule our own videos (manager fixes)
 ]
+EDIT_SCOPE = "https://www.googleapis.com/auth/youtube.force-ssl"
 CLIENT = SECRETS / "youtube_client_secret.json"
 TOKEN = SECRETS / "youtube_token.json"
 
@@ -62,7 +64,7 @@ def auth() -> None:
 def _creds() -> Credentials:
     if not TOKEN.exists():
         raise RuntimeError("Not authorised. Run `clipper auth youtube`.")
-    creds = Credentials.from_authorized_user_file(str(TOKEN), SCOPES)
+    creds = Credentials.from_authorized_user_file(str(TOKEN))  # keep the scopes the owner granted
     if not creds.valid and creds.refresh_token:
         creds.refresh(Request())
         TOKEN.write_text(creds.to_json())
@@ -97,3 +99,42 @@ def upload(path: Path, title: str, description: str, publish_at: datetime | None
     while resp is None:
         _, resp = req.next_chunk()
     return resp["id"]
+
+
+def can_edit() -> bool:
+    """True once the owner re-authorised with edit permission (`clipper auth youtube`)."""
+    try:
+        return EDIT_SCOPE in (_creds().scopes or [])
+    except Exception:
+        return False
+
+
+def _api():
+    if not can_edit():
+        raise RuntimeError("YouTube edit permission missing: run `clipper auth youtube` once.")
+    return build("youtube", "v3", credentials=_creds(), cache_discovery=False)
+
+
+def update(video_id: str, title: str | None = None, description: str | None = None, tags: list[str] | None = None,
+           publish_at: datetime | None = None, private: bool = False) -> None:
+    """Change text and/or schedule of one of our videos. private=True removes it from the schedule."""
+    yt = _api()
+    v = yt.videos().list(part="snippet,status", id=video_id).execute()["items"][0]
+    sn, st = v["snippet"], v["status"]
+    if title:
+        sn["title"] = title[:100]
+    if description:
+        sn["description"] = description[:5000]
+    if tags is not None:
+        cfg = SETTINGS["platforms"]["youtube"]
+        sn["tags"] = list(dict.fromkeys([*cfg.get("default_tags", []), *(t.lstrip("#") for t in tags)]))[:30]
+    body = {"id": video_id, "snippet": {k: sn[k] for k in ("title", "description", "tags", "categoryId") if k in sn},
+            "status": {"privacyStatus": st["privacyStatus"],
+                       "selfDeclaredMadeForKids": st.get("selfDeclaredMadeForKids", False)}}
+    if private:
+        body["status"]["privacyStatus"] = "private"
+    elif publish_at and st["privacyStatus"] == "private":
+        body["status"]["publishAt"] = publish_at.strftime("%Y-%m-%dT%H:%M:%SZ")
+    elif st.get("publishAt"):
+        body["status"]["publishAt"] = st["publishAt"]
+    yt.videos().update(part="snippet,status", body=body).execute()

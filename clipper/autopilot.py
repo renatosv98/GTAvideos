@@ -6,6 +6,7 @@ import fcntl
 import shutil
 import subprocess
 import traceback
+from datetime import date, datetime, timezone
 
 from . import db, discover, health
 from .agents import analyst
@@ -35,6 +36,20 @@ def cleanup() -> None:
             conn.execute("UPDATE streams SET video_path=NULL WHERE id=?", (r["id"],))
 
 
+def _cycle_due() -> bool:
+    """launchd wakes us every hour; run every `every_hours` (1 h during the launch fast lane)."""
+    cfg = _cfg()
+    every = float(cfg.get("every_hours", 3))
+    fl = cfg.get("fast_lane") or {}
+    if fl and date.fromisoformat(fl["from"]) <= date.today() <= date.fromisoformat(fl["to"]):
+        every = float(fl.get("every_hours", 1))
+    try:
+        last = datetime.fromisoformat((DATA / "autopilot_last.txt").read_text().strip())
+    except (OSError, ValueError):
+        return True
+    return (datetime.now(timezone.utc) - last).total_seconds() >= every * 3600 - 300
+
+
 def _notify(msg: str) -> None:
     subprocess.run(["osascript", "-e", f'display notification "{msg}" with title "GTAuploads autopilot"'],
                    check=False)
@@ -49,6 +64,10 @@ def run() -> int:
             print("autopilot already running; skipping")
             return 0
         from .pipeline import process
+
+        if not _cycle_due():
+            return 0
+        (DATA / "autopilot_last.txt").write_text(datetime.now(timezone.utc).isoformat())
 
         cleanup()
         made = 0
