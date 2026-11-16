@@ -138,6 +138,10 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("action", choices=["download", "list"])
 
     sub.add_parser("status", help="queue and schedule overview")
+    sub.add_parser("autopilot", help="find new streams, make + QA + approve clips, run the analyst (launchd every 3 h)")
+    sub.add_parser("discover", help="list new GTA streams the autopilot would process (no download)")
+    s = sub.add_parser("analyze", help="agent 5: collect stats and update the playbook")
+    s.add_argument("--force", action="store_true", help="update the playbook even with little data")
     sub.add_parser("health", help="check every clip is live on every platform and the queue is filled")
     sub.add_parser("doctor", help="check setup")
 
@@ -197,6 +201,17 @@ def main(argv: list[str] | None = None) -> int:
         return _status()
     elif a.cmd == "doctor":
         return _doctor()
+    elif a.cmd == "autopilot":
+        from .autopilot import run
+        return run()
+    elif a.cmd == "discover":
+        from .discover import find_new
+        for c, u, t in find_new():
+            print(f"{c.display_name}: {t[:80]}\n    {u}")
+        return 0
+    elif a.cmd == "analyze":
+        from .agents.analyst import run
+        return run(force=a.force)
     elif a.cmd == "health":
         from .health import report
         return report()

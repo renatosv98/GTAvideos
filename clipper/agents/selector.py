@@ -124,7 +124,15 @@ def _context(creator: Creator) -> str:
     playbook = PLAYBOOK.read_text() if PLAYBOOK.exists() else "(empty)"
     return (f"# Channel playbook (learned from published shorts - follow it)\n{playbook}\n\n"
             f"# Recent feedback for you\n{_feedback()}\n\n"
+            f"# Clips we already have (do NOT pick the same moment or topic again)\n{_existing()}\n\n"
             f"Creator: {creator.display_name}. Stream language: {creator.language}.")
+
+
+def _existing(limit: int = 60) -> str:
+    with db.connect() as conn:
+        rows = conn.execute("SELECT title FROM clips WHERE status IN ('approved','published','rendered') "
+                            "ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
+    return "\n".join(f"- {r['title']}" for r in rows) or "(none yet)"
 
 
 def _frames(video: Path, start: float, end: float, n: int, out_dir: Path, tag: str) -> list[Path]:

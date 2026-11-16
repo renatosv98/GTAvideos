@@ -27,6 +27,8 @@ creators:
       terms: ""         # TODO: any conditions (credit format, no monetisation, etc.)
     links:
       description: "Directo completo: https://twitch.tv/illojuan"
+    vods: "https://www.twitch.tv/illojuan/videos?filter=archives&sort=time"
+    live: "https://www.twitch.tv/illojuan"
 
   - id: rubius
     display_name: "Rubius"
@@ -44,6 +46,8 @@ creators:
       terms: ""
     links:
       description: "Directo completo: https://twitch.tv/rubius"
+    vods: "https://www.twitch.tv/rubius/videos?filter=archives&sort=time"
+    live: "https://www.twitch.tv/rubius"
 
   - id: xqc
     display_name: "xQc"
@@ -62,3 +66,6 @@ creators:
       terms: ""
     links:
       description: "Full stream: https://kick.com/xqc"
+    vods: "https://kick.com/xqc/videos"
+    live: "https://kick.com/xqc"
+    keywords: ["gta", "grand theft auto", "nopixel"]   # his titles are long lists; only take ones naming GTA

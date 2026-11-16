@@ -74,3 +74,10 @@ platforms:
     enabled: false          # switch on after `clipper auth instagram` + one test with publish-now
     username: ""            # your Instagram handle (no @); posting is refused if the authorised account differs
     api_version: v24.0
+
+autopilot:                       # `clipper autopilot` (launchd, every 3 h)
+  auto_approve_until: "2026-11-23"   # week 1: clips that pass QA are scheduled without your review; after this date they wait in `clipper review`
+  min_viral_chance: 30           # don't auto-approve clips the selector rates below this
+  max_streams_per_run: 2
+  keep_streams: 2                # delete older downloaded recordings (clips are already rendered)
+  min_free_gb: 40                # stop downloading below this much free disk

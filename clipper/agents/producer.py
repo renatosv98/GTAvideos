@@ -7,12 +7,14 @@ Output: finished vertical shorts (face top / gameplay bottom, jump cuts, hook, c
 from __future__ import annotations
 
 import json
+from datetime import date
 from pathlib import Path
 
 from .. import db, music
-from ..config import DATA, Creator
+from ..config import DATA, SETTINGS, Creator
+from ..scheduler import assign_slot, reprioritize
 from ..render import render_clip
-from . import facecam
+from . import facecam, qa
 
 
 def recent_tracks(n: int = 6) -> list[str]:
@@ -66,4 +68,47 @@ def run(stream_id: int, video: Path, creator: Creator, picks: list[dict]) -> lis
                          (str(path) if path else None, status, err, clip_id))
         ids.append(clip_id)
         print(f"    #{clip_id} [{p['viral_chance']}% viral chance, music: {edit['music'] or 'none'}] {p['title']}")
+        if path:
+            check_and_approve(clip_id, creator)
     return ids
+
+
+def auto_approve_active() -> bool:
+    until = SETTINGS.get("autopilot", {}).get("auto_approve_until")
+    return bool(until) and date.today() <= date.fromisoformat(str(until))
+
+
+def check_and_approve(clip_id: int, creator: Creator) -> str:
+    """QA the finished short; failures go back to the selector as feedback. Passing clips are auto-approved
+    while auto-approve is on (week 1), otherwise they wait for you in `clipper review`."""
+    cfg = SETTINGS.get("autopilot", {})
+    with db.connect() as conn:
+        clip = dict(conn.execute("SELECT * FROM clips WHERE id=?", (clip_id,)).fetchone())
+        existing = [r["title"] for r in conn.execute(
+            "SELECT title FROM clips WHERE id != ? AND status IN ('approved','published') ORDER BY id DESC LIMIT 40",
+            (clip_id,))]
+    edit = json.loads(clip["edit_json"] or "{}")
+    words = json.loads(clip["words_json"] or "[]")
+    try:
+        r = qa.review(Path(clip["path"]), {**clip, "hook": edit.get("hook")}, " ".join(w["w"] for w in words),
+                      existing, creator.language)
+    except Exception as e:
+        print(f"    #{clip_id} QA could not run ({e}); left for manual review")
+        return "rendered"
+    with db.connect() as conn:
+        conn.execute("UPDATE clips SET title=?, caption=? WHERE id=?", (r["title"], r["caption"], clip_id))
+        if not r["passed"]:
+            why = "; ".join(r["issues"]) + (f" (duplicate of: {r['duplicate_of']})" if r["duplicate_of"] else "")
+            conn.execute("UPDATE clips SET status='rejected', review_notes=? WHERE id=?", (f"QA: {why}", clip_id))
+            conn.execute("INSERT INTO agent_feedback (from_agent, to_agent, clip_id, kind, message) "
+                         "VALUES ('producer','selector',?,'qa_fail',?)", (clip_id, f"Rejected '{clip['title']}': {why}"))
+            print(f"    #{clip_id} QA ❌ {why}")
+            return "rejected"
+        if auto_approve_active() and (clip["score"] or 0) >= cfg.get("min_viral_chance", 30):
+            conn.execute("UPDATE clips SET status='approved', review_notes='auto-approved (QA passed)', slot_at=? "
+                         "WHERE id=?", (assign_slot(conn), clip_id))
+            reprioritize(conn)
+            print(f"    #{clip_id} QA ✅ auto-approved")
+            return "approved"
+    print(f"    #{clip_id} QA ✅ waiting for your review")
+    return "rendered"
