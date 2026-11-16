@@ -71,9 +71,12 @@ platforms:
     mode: inbox             # inbox = sends to your TikTok drafts (works before audit); direct = publish (needs audited app)
     privacy_level: PUBLIC_TO_EVERYONE
   instagram:
-    enabled: false          # switch on after `clipper auth instagram` + one test with publish-now
+    enabled: true           # Reels via GitHub staging (temporary release file, deleted after each post)
     username: gtauploadsx   # your Instagram handle (no @); posting is refused if the authorised account differs
     api_version: v27.0
+    upload_method: github   # github = Instagram fetches a temporary public file; direct = resumable upload (rejected for our token type)
+    staging_repo: renatosv98/GTAvideos
+    staging_release: ig-staging
 
 autopilot:                       # `clipper autopilot` (launchd, every 3 h)
   auto_approve_until: "2026-11-23"   # week 1: clips that pass QA are scheduled without your review; after this date they wait in `clipper review`

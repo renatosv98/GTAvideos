@@ -17,6 +17,9 @@ from __future__ import annotations
 import json
 import os
 import secrets as pysecrets
+import shutil
+import subprocess
+import tempfile
 import time
 import urllib.parse
 from pathlib import Path
@@ -155,17 +158,63 @@ def upload(path: Path, caption: str) -> str:
     if expected and tok.get("username", "").lower() != expected.lower():
         raise RuntimeError(f"Authorised Instagram account is @{tok.get('username')}, expected @{expected}.")
 
-    container = _check(requests.post(f"{_host()}/{_v()}/{uid}/media", data={
-        "media_type": "REELS", "upload_type": "resumable", "caption": caption[:2200],
-        "share_to_feed": "true", "access_token": token,
-    }, timeout=60), "create container")
-    cid = container["id"]
+    if _cfg().get("upload_method", "github") == "github":
+        # Instagram fetches the video from a public link: stage it as a temporary GitHub release file
+        name, url = _stage(path)
+        try:
+            cid = _create_and_wait(uid, token, caption, video_url=url)
+        finally:
+            _unstage(name)
+    else:
+        cid = _create_and_wait(uid, token, caption, path=path)
 
-    size = path.stat().st_size
-    with open(path, "rb") as f:
-        _check(requests.post(container.get("uri") or f"https://rupload.facebook.com/ig-api-upload/{_v()}/{cid}", data=f, timeout=600,
-                             headers={"Authorization": f"OAuth {token}", "offset": "0", "file_size": str(size)}),
-               "video upload")
+    pub = _check(requests.post(f"{_host()}/{_v()}/{uid}/media_publish",
+                               data={"creation_id": cid, "access_token": token}, timeout=60), "publish")
+    return pub["id"]
+
+
+def _gh(*args: str) -> str:
+    gh = shutil.which("gh") or "/opt/homebrew/bin/gh"
+    r = subprocess.run([gh, *args], capture_output=True, text=True, timeout=600)
+    if r.returncode:
+        raise RuntimeError(f"gh {args[0]} {args[1]}: {r.stderr.strip()[:200]}")
+    return r.stdout
+
+
+def _stage(path: Path) -> tuple[str, str]:
+    repo, tag = _cfg().get("staging_repo", "renatosv98/GTAvideos"), _cfg().get("staging_release", "ig-staging")
+    name = f"reel-{pysecrets.token_hex(6)}.mp4"
+    with tempfile.TemporaryDirectory() as d:
+        staged = Path(d) / name
+        shutil.copyfile(path, staged)
+        _gh("release", "upload", tag, str(staged), "-R", repo, "--clobber")
+    return name, f"https://github.com/{repo}/releases/download/{tag}/{name}"
+
+
+def _unstage(name: str) -> None:
+    try:
+        _gh("release", "delete-asset", _cfg().get("staging_release", "ig-staging"), name,
+            "-R", _cfg().get("staging_repo", "renatosv98/GTAvideos"), "-y")
+    except Exception as e:
+        print(f"   could not delete staged file {name}: {e}")
+
+
+def _create_and_wait(uid: str, token: str, caption: str, video_url: str | None = None,
+                     path: Path | None = None) -> str:
+    data = {"media_type": "REELS", "caption": caption[:2200], "share_to_feed": "true", "access_token": token}
+    if video_url:
+        data["video_url"] = video_url
+    else:
+        data["upload_type"] = "resumable"
+    container = _check(requests.post(f"{_host()}/{_v()}/{uid}/media", data=data, timeout=60), "create container")
+    cid = container["id"]
+    if path:
+        size = path.stat().st_size
+        with open(path, "rb") as f:
+            _check(requests.post(container.get("uri") or f"https://rupload.facebook.com/ig-api-upload/{_v()}/{cid}",
+                                 data=f, timeout=600,
+                                 headers={"Authorization": f"OAuth {token}", "offset": "0", "file_size": str(size)}),
+                   "video upload")
 
     for _ in range(120):  # Instagram transcodes the video; usually under a minute
         st = _check(requests.get(f"{_host()}/{_v()}/{cid}", params={"fields": "status_code,status",
@@ -177,10 +226,7 @@ def upload(path: Path, caption: str) -> str:
         time.sleep(5)
     else:
         raise RuntimeError("Instagram is still processing the video after 10 min; try again later.")
-
-    pub = _check(requests.post(f"{_host()}/{_v()}/{uid}/media_publish",
-                               data={"creation_id": cid, "access_token": token}, timeout=60), "publish")
-    return pub["id"]
+    return cid
 
 
 def permalink(media_id: str) -> str | None:
