@@ -4,10 +4,12 @@
 - Never imply we are official or affiliated with Rockstar or the creators.
 
 ## Manager instructions
-- Read 'System state' before recommending distribution fixes. Instagram catch-up (1 post/3 h) and TikTok inbox drafts are automatic: never tell the owner to upload by hand a clip the pipeline has queued (duplicates). Escalate a gap only if the publisher logs a failure or it is >30 h after the platform was switched on.
+- Read 'System state' before recommending distribution fixes. Instagram catch-up (1 post/3 h) and TikTok inbox drafts are automatic: never tell the owner to upload by hand a clip the pipeline has queued (duplicates). Escalate a gap only if the publisher logs a failure or it is >30 h after the platform was switched on (Instagram: 16 Nov).
 - Before reporting a data mismatch, check the publisher's statuses (scheduled ≠ published) and say which source each count comes from.
+- Every title/caption must be true on its posting day (clips post up to 6 days after the stream): no countdowns, 'hoy', 'sale en X días' or 'aún no ha salido'.
+- GTA 6 hashtags and wording only on GTA 6 footage. GTA 5 footage: #GTAV/#GTA5, never text implying GTA 6 gameplay.
 - Creator names are fine in bios, descriptions and keywords (the owner rule only covers the YouTube banner). Any text that names them must also say it's unofficial fan clips.
-- Max 5 recommendations, short enough that the report finishes. Each one needs exact paste-ready text, its character count against the platform limit, and the exact menu path.
+- Max 5 recommendations. Each one needs exact paste-ready text, its character count against the platform limit, and the exact menu path.
 - Start each report with the status of your previous recommendations: done / not done / no longer needed.
 - Don't recommend pinning or featuring clips because of view differences under 2x the median; mark any such suggestion as provisional.
 - Launch week (GTA 6 out 19 Nov): put profile changes that capture launch searches first (e.g. 'GTA 6' plus creator names in bio/description/keywords).

@@ -8,12 +8,14 @@
 ## Manager instructions
 - Read the analyst playbook before every stream. It overrides your defaults, never the owner rules.
 - Start every title with the creator's name (IlloJuan / Rubius / Auronplay), checked against the source stream.
+- Name the game honestly: GTA 5 footage says 'GTA V'; 'GTA 6' only on GTA 6 footage. Plain 'en GTA' (#20–#49) will read as GTA 6 once it's out.
 - First 1–2 s = the event, or a line saying what just happened. Cut warm-up chatter.
-- Hooks hide the ending (curiosity gap). No topic labels like #10 'Las normas del festival...' or #16 'Descargando GTA 6: 210 GB...'.
-- Reject opinion, rant or hot-take clips where nothing happens on screen (#17, #18). Talking only qualifies if it ends on a personal payoff shown on screen (e.g. #9's countdown).
-- Non-gameplay clips: max 1 per 5. If a stream has no GTA gameplay (pre-launch download/news streams), plan at most 3 clips from it, the best ones only.
-- One clip per topic. Check the last 30 clips first: don't repeat a topic that's already covered (#11 vs #9; #13 vs #18) unless the payoff is clearly different.
-- Clips post days after the stream. No countdowns, dates or 'today' in titles/hooks; the title must still be true a week later.
-- Keep predicted viral chance at 25–60%. In 'why picked', name the playbook hypothesis each clip tests.
+- Hooks hide the ending. No topic labels (#10, #16). Vary templates: max 1 '…y pasa esto' and max 1 '…y mira cuánto/lo que le pagan' per stream (#27–#49 used them 5 and 4 times).
+- Reject opinion/rant clips where nothing happens on screen (#17, #18). Talking only qualifies if it ends on a personal payoff shown on screen (#9).
+- Non-gameplay: max 1 clip per 5; a stream with no GTA gameplay gets max 3 clips.
+- One clip per mission/scene. Check the last 30 clips; don't repeat a topic unless the payoff is clearly different (#29/#30 same bank heist; #28/#31/#33 parachute jumps).
+- Clips post up to 6 days after the stream: no countdowns, dates or 'today'; the title must stay true.
+- Volume: pre-launch GTA 5 streams max 4 clips, best only (queue full until 23 Nov); GTA 6 streams up to 8.
+- Keep viral chance 25–60%. Start 'why picked' with 'Tests: <playbook hypothesis> · <N> s' (done for #20–#26, missing from #27 on).
 - Every stream: at least 2 clips of 15–25 s.
-- From 19 Nov (GTA 6 launch), GTA 6 gameplay comes before everything else: first minutes in-game, first chaos, first fail.
+- From 19 Nov, GTA 6 gameplay comes before everything else: first minutes in-game, first chaos, first fail.

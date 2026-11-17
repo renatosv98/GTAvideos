@@ -93,6 +93,8 @@ def find_new(raw_creators: dict | None = None) -> list[tuple[Creator, str, str]]
             if not url or url in done or url in seen:
                 continue
             minutes = _gta_minutes(url)
+            if minutes is None and "twitch.tv/videos/" in url:
+                continue  # chapter lookup failed (network/still processing): try again next run, don't skip forever
             if minutes is not None:  # Twitch: trust the game chapters, not the title
                 is_gta = minutes >= MIN_GTA_MINUTES
             else:

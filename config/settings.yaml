@@ -84,7 +84,7 @@ autopilot:                       # `clipper autopilot` (launchd, every 3 h)
   auto_approve_until: always    # owner decision 16 Nov: clips that pass QA are always scheduled without review ("YYYY-MM-DD" to limit)
   min_viral_chance: 30           # don't auto-approve clips the selector rates below this
   max_streams_per_run: 2
-  keep_streams: 2                # delete older downloaded recordings (clips are already rendered)
+  keep_streams: 0   # delete each recording right after its clips are made
   min_free_gb: 40                # stop downloading below this much free disk
   every_hours: 3                 # normal cycle
   fast_lane: {from: "2026-11-18", to: "2026-11-21", every_hours: 1}   # GTA 6 launch: look for streams hourly

@@ -22,8 +22,9 @@ def _free_gb() -> float:
 
 
 def cleanup() -> None:
-    """Delete downloaded recordings except the newest `keep_streams` (clips that need them are done by then)."""
-    keep = int(_cfg().get("keep_streams", 3))
+    """Delete stream recordings once clipped (render, QA and TikTok cuts all run inside process()).
+    `keep_streams` (default 0) = how many of the newest recordings to keep anyway."""
+    keep = int(_cfg().get("keep_streams", 0))
     with db.connect() as conn:
         rows = conn.execute("SELECT id, video_path FROM streams WHERE status='rendered' AND video_path IS NOT NULL "
                             "ORDER BY id DESC").fetchall()
