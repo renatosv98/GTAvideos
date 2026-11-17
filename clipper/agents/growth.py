@@ -265,7 +265,7 @@ def stale_text(pack: dict) -> list[str]:
     """Time-relative phrases that go out of date between writing and posting."""
     hits = []
     for k, v in pack.items():
-        if k == "notes":  # internal reasoning, never published
+        if k in ("notes", "dated_wording", "written_at"):  # internal fields, never published
             continue
         for x in (v if isinstance(v, list) else [v]):
             if isinstance(x, str) and (m := COUNTDOWN.search(x)):
