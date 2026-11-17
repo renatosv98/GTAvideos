@@ -280,10 +280,21 @@ def publish_due(dry_run: bool = False) -> None:
                 print(f"health check failed: {e}")
 
 
+def _upload_ahead_hours() -> float:
+    """During the launch fast lane, upload only a short way ahead so YouTube's daily upload cap stays free for
+    fresh launch clips (the clips already uploaded keep publishing even if the Mac is off)."""
+    from datetime import date
+    fl = SETTINGS.get("autopilot", {}).get("fast_lane") or {}
+    if fl.get("youtube_upload_ahead_hours") and \
+            date.fromisoformat(fl["from"]) <= date.today() <= date.fromisoformat(fl["to"]):
+        return float(fl["youtube_upload_ahead_hours"])
+    return float(SETTINGS["schedule"]["youtube_upload_ahead_hours"])
+
+
 def _publish_due(dry_run: bool = False) -> None:
     now = datetime.now(UTC)
     plat = SETTINGS["platforms"]
-    ahead = timedelta(hours=SETTINGS["schedule"]["youtube_upload_ahead_hours"])
+    ahead = timedelta(hours=_upload_ahead_hours())
     creators = {c.id: c for c in load_creators()}
 
     with db.connect() as conn:
