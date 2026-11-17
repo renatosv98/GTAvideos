@@ -64,6 +64,7 @@ platforms:
     enabled: true
     channel_id: UCtEupstFEid-N-o_STg64gg   # uploads are refused if the authorised account is a different channel
     category_id: "20"       # Gaming
+    daily_upload_cap: 10    # new channel: YouTube refuses more uploads per ~24 h
     default_tags: ["GTA6", "GTA 6", "Grand Theft Auto VI", "Shorts"]
     made_for_kids: false
   tiktok:
@@ -88,5 +89,6 @@ autopilot:                       # `clipper autopilot` (launchd, every 3 h)
   keep_streams: 0   # delete each recording right after its clips are made
   min_free_gb: 40                # stop downloading below this much free disk
   every_hours: 3                 # normal cycle
-  fast_lane: {from: "2026-11-18", to: "2026-11-21", every_hours: 1, youtube_upload_ahead_hours: 12}   # GTA 6 launch: look for streams hourly
+  fast_lane: {from: "2026-11-17", to: "2026-11-21", every_hours: 1, youtube_upload_ahead_hours: 12, interval_hours: 2, youtube_reserve_for_priority: 4}   # launch: 2 h posts, 4 YouTube uploads/day kept for launch clips
+  priority_from: "2026-11-18T00:00:00+00:00"   # owner 17 Nov: clips of streams found from here on (GTA 6 launch) post first
   stuck_hours: 6                 # alert when a stream sits in one stage longer than this

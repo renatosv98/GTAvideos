@@ -17,6 +17,21 @@ from .config import SETTINGS, load_creators
 UTC = timezone.utc
 
 
+def _fast_lane() -> dict:
+    """The launch fast-lane settings when today is inside it, else {}."""
+    from datetime import date
+    fl = SETTINGS.get("autopilot", {}).get("fast_lane") or {}
+    if fl and date.fromisoformat(fl["from"]) <= date.today() <= date.fromisoformat(fl["to"]):
+        return fl
+    return {}
+
+
+def _priority_from() -> str | None:
+    """Clips from streams found after this time go before everything else (GTA 6 launch streams, owner 17 Nov)."""
+    v = SETTINGS.get("autopilot", {}).get("priority_from")
+    return datetime.fromisoformat(str(v)).astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S") if v else None
+
+
 def _tz() -> ZoneInfo:
     return ZoneInfo(SETTINGS["schedule"]["timezone"])
 
@@ -43,7 +58,7 @@ def next_slot_after(t: datetime) -> datetime:
 
 
 def assign_slot(conn: sqlite3.Connection) -> str:
-    step = timedelta(hours=int(SETTINGS["schedule"]["interval_hours"]))
+    step = timedelta(hours=float(_fast_lane().get("interval_hours") or SETTINGS["schedule"]["interval_hours"]))
     candidate = next_slot_after(datetime.now(UTC) + timedelta(minutes=10))
     row = conn.execute(
         "SELECT MAX(slot_at) AS m FROM clips WHERE status IN ('approved','published') AND slot_at IS NOT NULL"
@@ -61,12 +76,14 @@ def reprioritize(conn: sqlite3.Connection) -> None:
     from .uploaders import youtube
     locked = "('published')" if youtube.can_edit() else "('scheduled','published')"
     now = datetime.now(UTC).isoformat()
+    pf = _priority_from() or "9999"
     rows = conn.execute(
-        "SELECT id, slot_at, score FROM clips WHERE status='approved' AND slot_at IS NOT NULL AND slot_at > ? "
-        f"AND id NOT IN (SELECT clip_id FROM uploads WHERE status IN {locked})", (now,)
+        "SELECT c.id, c.slot_at, c.score, s.created_at >= ? AS prio FROM clips c JOIN streams s ON s.id=c.stream_id "
+        "WHERE c.status='approved' AND c.slot_at IS NOT NULL AND c.slot_at > ? "
+        f"AND c.id NOT IN (SELECT clip_id FROM uploads WHERE status IN {locked})", (pf, now)
     ).fetchall()
     slots = sorted(r["slot_at"] for r in rows)
-    ranked = sorted(rows, key=lambda r: (-(r["score"] or 0), r["id"]))
+    ranked = sorted(rows, key=lambda r: (-r["prio"], -(r["score"] or 0), r["id"]))
     for r, slot in zip(ranked, slots):
         conn.execute("UPDATE clips SET slot_at=? WHERE id=?", (slot, r["id"]))
 
@@ -300,12 +317,20 @@ def _publish_due(dry_run: bool = False) -> None:
     with db.connect() as conn:
         reprioritize(conn)
         clips = conn.execute(
-            "SELECT clips.*, streams.creator_id FROM clips JOIN streams ON streams.id = clips.stream_id "
-            "WHERE clips.status IN ('approved','published') AND slot_at IS NOT NULL ORDER BY slot_at"
-        ).fetchall()
+            "SELECT clips.*, streams.creator_id, streams.created_at >= ? AS prio FROM clips "
+            "JOIN streams ON streams.id = clips.stream_id "
+            "WHERE clips.status IN ('approved','published') AND slot_at IS NOT NULL ORDER BY slot_at",
+            (_priority_from() or "9999",)).fetchall()
+        clips = sorted(clips, key=lambda c: -c["prio"])  # launch clips get YouTube's upload cap first
+        yt_24h = conn.execute("SELECT COUNT(*) FROM uploads WHERE platform='youtube' AND remote_id IS NOT NULL "
+                              "AND created_at > datetime('now','-1 day')").fetchone()[0]
         done = {(r["clip_id"], r["platform"]) for r in conn.execute(
             "SELECT clip_id, platform FROM uploads WHERE status IN ('scheduled','published','inbox') "
             "OR (status='failed' AND attempts >= ?)", (MAX_ATTEMPTS,))}
+
+    fl = _fast_lane()
+    yt_cap = int(SETTINGS["platforms"]["youtube"].get("daily_upload_cap", 10))
+    yt_reserve = int(fl.get("youtube_reserve_for_priority", 0))
 
     tiktok_full = yt_full = False
     with db.connect() as conn:  # catch-up posts (clip's slot long past): at most one per platform every 3 h
@@ -314,7 +339,7 @@ def _publish_due(dry_run: bool = False) -> None:
             "AND status IN ('scheduled','published','inbox')")}
     for clip in clips:
         slot = _parse(clip["slot_at"])
-        late = slot < now - timedelta(hours=2)
+        late = slot < now - timedelta(hours=2) and not fl  # fast lane: catch up at full speed
         creator = creators.get(clip["creator_id"])
         if not creator or not creator.permitted:
             print(f"#{clip['id']}: creator '{clip['creator_id']}' no longer permitted. Skipping.")
@@ -324,7 +349,9 @@ def _publish_due(dry_run: bool = False) -> None:
             continue
         desc = _description(clip, creator)
 
-        if plat["youtube"]["enabled"] and not yt_full and (clip["id"], "youtube") not in done and slot - now <= ahead:
+        yt_reserved = not clip["prio"] and yt_24h >= yt_cap - yt_reserve  # keep uploads free for launch clips
+        if (plat["youtube"]["enabled"] and not yt_full and not yt_reserved and (clip["id"], "youtube") not in done
+                and slot - now <= ahead):
             publish_at = slot if slot > now + timedelta(minutes=15) else None
             print(f"#{clip['id']} -> YouTube ({'scheduled ' + fmt_local(clip['slot_at']) if publish_at else 'now'})")
             if not dry_run:
@@ -334,6 +361,7 @@ def _publish_due(dry_run: bool = False) -> None:
                     with db.connect() as conn:
                         _record(conn, clip["id"], "youtube", "scheduled" if publish_at else "published",
                                 vid, f"https://youtube.com/shorts/{vid}")
+                    yt_24h += 1
                 except Exception as e:
                     if "uploadLimitExceeded" in str(e):
                         # new channels have a daily upload cap; the clip stays queued and is retried next run
