@@ -33,7 +33,8 @@ transcription:              # agent 1: whole stream, cached per chunk
 
 analysis:                   # agent 2
   shortlist: 16             # moments the scout passes to the editor
-  max_clips: 8              # clips kept per stream
+  max_clips: 8              # clips kept per stream (up to 5 h)
+  max_clips_long: 14        # cap for long streams (~1.2 clips per hour, e.g. 10 h GTA 6 launch -> 12)
   min_seconds: 15
   max_seconds: 45
   frames_per_candidate: 3   # still frames sent to Claude per candidate (0 = text only)

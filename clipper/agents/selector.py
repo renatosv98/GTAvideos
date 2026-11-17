@@ -147,16 +147,42 @@ def _frames(video: Path, start: float, end: float, n: int, out_dir: Path, tag: s
     return paths
 
 
-def scout(report: dict, creator: Creator) -> list[dict]:
+PART_HOURS = 4  # long streams are scouted in parts of this length so every hour gets a fair look
+
+
+def targets(duration: float) -> tuple[int, int]:
+    """(shortlist, max_clips) for a recording: the settings for streams up to 5 h, more for longer ones
+    (about 1.2 clips per hour, capped by `max_clips_long`) - e.g. a 10 h GTA 6 launch stream gives 12."""
     cfg = SETTINGS["analysis"]
+    hours = duration / 3600
+    clips = max(int(cfg["max_clips"]), min(int(cfg.get("max_clips_long", 14)), round(hours * 1.2)))
+    return max(int(cfg["shortlist"]), clips * 2), clips
+
+
+def scout(report: dict, creator: Creator) -> list[dict]:
+    shortlist, _ = targets(report["duration"])
     spikes = ", ".join(f"{s['peak']:.0f}s" for s in report["spikes"])
-    prompt = (f"{_context(creator)}\n\nStream title: \"{report['title']}\"\n"
-              f"Strongest audio/chat spikes (seconds): {spikes}\n\n"
-              f"Below is the full stream timeline: one line per 15 s, with markers where loudness/chat/replays spike.\n"
-              f"Shortlist up to {cfg['shortlist']} moments that could become great shorts. Give each a window "
-              f"(start/end seconds, 30-120 s wide) that contains the full setup and payoff. "
-              f"Don't only follow the markers: quiet stories and reveals can be great too.\n\n{timeline(report)}")
-    return ask_json(RULES + brief("selector", with_feedback=False), prompt, SCOUT_SCHEMA)["moments"][: cfg["shortlist"]]
+    full = timeline(report).splitlines()
+    span = PART_HOURS * 3600
+    n_parts = max(1, -(-int(report["duration"]) // span)) if report["duration"] > 5 * 3600 else 1
+    moments: list[dict] = []
+    for k in range(n_parts):
+        a, b = k * span, (k + 1) * span if n_parts > 1 else report["duration"] + 1
+        lines = [ln for ln in full if a <= int(ln[1:ln.index("s ")]) < b]
+        if not lines:
+            continue
+        want = shortlist if n_parts == 1 else -(-shortlist // n_parts)
+        part = "" if n_parts == 1 else f" (part {k + 1}/{n_parts}: {_mmss(a)}-{_mmss(min(b, report['duration']))})"
+        prompt = (f"{_context(creator)}\n\nStream title: \"{report['title']}\"\n"
+                  f"Strongest audio/chat spikes (seconds): {spikes}\n\n"
+                  f"Below is the stream timeline{part}: one line per 15 s, with markers where loudness/chat/replays "
+                  f"spike.\nShortlist up to {want} moments that could become great shorts. Give each a window "
+                  f"(start/end seconds, 30-120 s wide) that contains the full setup and payoff. "
+                  f"Don't only follow the markers: quiet stories and reveals can be great too.\n\n" + "\n".join(lines))
+        if n_parts > 1:
+            print(f"    scouting part {k + 1}/{n_parts} ...")
+        moments += ask_json(RULES + brief("selector", with_feedback=False), prompt, SCOUT_SCHEMA)["moments"][:want]
+    return moments[:shortlist]
 
 
 def edit(video: Path, report: dict, creator: Creator, moments: list[dict]) -> list[dict[str, Any]]:
@@ -186,7 +212,7 @@ def edit(video: Path, report: dict, creator: Creator, moments: list[dict]) -> li
             f"keep 'GTA 6' / '#GTA6' as is.\n"
             f"- risk_notes: copyright/policy risks you can see or hear (in-game radio or licensed music, other people's "
             f"videos on screen, slurs, personal info), or \"none\".\n"
-            f"Skip moments that don't work. Return up to {cfg['max_clips']} picks, highest viral_chance first.\n\n"
+            f"Skip moments that don't work. Return up to {targets(report['duration'])[1]} picks, highest viral_chance first.\n\n"
             + "\n\n".join(parts))
         picks = ask_json(RULES + brief("selector", with_feedback=False), prompt, EDIT_SCHEMA, images=images)["picks"]
 
@@ -204,7 +230,7 @@ def edit(video: Path, report: dict, creator: Creator, moments: list[dict]) -> li
                  words=words_between(report["words"], segs[0][0], segs[-1][1]))
         cleaned.append(p)
     cleaned.sort(key=lambda p: p["viral_chance"], reverse=True)
-    return cleaned[: cfg["max_clips"]]
+    return cleaned[: targets(report["duration"])[1]]
 
 
 def run(video: Path, report: dict, creator: Creator, stream_dir: Path, redo: bool = False) -> list[dict]:
