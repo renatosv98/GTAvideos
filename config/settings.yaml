@@ -92,3 +92,9 @@ autopilot:                       # `clipper autopilot` (launchd, every 3 h)
   fast_lane: {from: "2026-11-17", to: "2026-11-21", every_hours: 1, youtube_upload_ahead_hours: 12, interval_hours: 2, youtube_reserve_for_priority: 4}   # launch: 2 h posts, 4 YouTube uploads/day kept for launch clips
   # owner 17-18 Nov: GTA 6 gameplay clips (Twitch 'Grand Theft Auto VI' chapter / GTA 6 video) post before GTA 5 ones
   stuck_hours: 6                 # alert when a stream sits in one stage longer than this
+
+# Owner 18 Nov: ask viewers to follow in every caption/description (added after the caption, before the hashtags)
+follow_cta:
+  instagram: "👉 Síguenos para no perderte ningún clip de GTA 6 🔥"
+  tiktok: "👉 Síguenos para no perderte ningún clip de GTA 6 🔥"
+  youtube: "🔔 Suscríbete para no perderte ningún clip de GTA 6 🔥"

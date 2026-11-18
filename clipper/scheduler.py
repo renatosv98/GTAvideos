@@ -6,6 +6,8 @@ On approval each clip gets the next free slot. `clipper publish-due` (run every 
 """
 from __future__ import annotations
 
+import re
+
 import sqlite3
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -205,9 +207,20 @@ def _yt_tags(clip) -> list[str]:
     return _pack(clip).get("youtube_tags") or []
 
 
+FOLLOW_RE = re.compile(r"s[ií]gue(nos|me)|suscr[ií]bete|follow", re.I)
+
+
+def _with_cta(body: str, platform: str) -> str:
+    """Owner 18 Nov: every post asks viewers to follow (added by code so it's never forgotten, once only)."""
+    cta = (SETTINGS.get("follow_cta") or {}).get(platform)
+    if not cta or FOLLOW_RE.search(body or ""):
+        return body
+    return f"{body.rstrip()}\n\n{cta}" if body else cta
+
+
 def _description(clip, creator) -> str:
     pk = _pack(clip)
-    parts = [pk.get("youtube_description") or clip["caption"] or "", ""]
+    parts = [_with_cta(pk.get("youtube_description") or clip["caption"] or "", "youtube"), ""]
     parts.append(f"Clip from {creator.credit}.")  # credit lines are always added by code, never left to an agent
     if creator.links.get("description"):
         parts.append(creator.links["description"])
@@ -222,7 +235,9 @@ def _short_caption(clip, creator=None, platform: str = "tiktok") -> str:
     pk = _pack(clip)
     body = pk.get(f"{platform}_caption")
     tags = _tags(pk.get(f"{platform}_hashtags")) if body else ""
-    text = f"{body}\n\n{tags}".strip() if body else f"{clip['title']} {clip['hashtags'] or ''}".strip()
+    if not body:
+        body, tags = clip["title"], clip["hashtags"] or ""
+    text = f"{_with_cta(body, platform)}\n\n{tags}".strip()
     if creator:
         text += f"\n🎥 {creator.credit}"
     return f"{text}\n{mc}" if (mc := _music_credit(clip)) else text
