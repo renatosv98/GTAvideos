@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 from pathlib import Path
 from typing import Any
 
@@ -32,6 +34,19 @@ def gta_minutes(info: dict[str, Any]) -> float | None:
         return None
     return sum(c["end_time"] - c["start_time"] for c in ch
                if any(w in (c.get("title") or "").lower() for w in GTA_WORDS)) / 60
+
+
+GTA6_RE = re.compile(r"grand theft auto:? (vi|6)\b|\bgta ?(vi|6)\b", re.I)
+
+
+def is_gta6(info: dict[str, Any], since: str = "2026-11-18") -> bool:
+    """GTA 6 gameplay? Twitch: 20+ min in a 'Grand Theft Auto VI' chapter. No chapters (YouTube): 'GTA 6' in the
+    title of a video published on/after GTA 6 came out (before that, 'GTA 6' titles were GTA 5 countdown content)."""
+    ch = info.get("chapters") or []
+    if ch:
+        return sum(c["end_time"] - c["start_time"] for c in ch if GTA6_RE.search(c.get("title") or "")) >= 20 * 60
+    d = info.get("upload_date") or ""
+    return bool(GTA6_RE.search(info.get("title") or "")) and f"{d[:4]}-{d[4:6]}-{d[6:]}" >= since
 
 
 def gta_range(info: dict[str, Any]) -> tuple[float, float] | None:

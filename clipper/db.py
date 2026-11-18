@@ -19,7 +19,9 @@ CREATE TABLE IF NOT EXISTS streams (
     chat_path TEXT,
     status TEXT NOT NULL DEFAULT 'new',     -- new | downloaded | analyzed | rendered | failed
     error TEXT,
-    created_at TEXT DEFAULT (datetime('now'))
+    created_at TEXT DEFAULT (datetime('now')),
+    recorded_at TEXT,                        -- when the stream/video was live/uploaded (UTC)
+    gta6 INTEGER DEFAULT 0                   -- 1 = GTA 6 gameplay (these clips post first)
 );
 CREATE TABLE IF NOT EXISTS clips (
     id INTEGER PRIMARY KEY,

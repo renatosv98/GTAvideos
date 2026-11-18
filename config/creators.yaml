@@ -77,10 +77,28 @@ creators:
       - "youtube.com/@thedanirep"
       - "danirep"
     permission:
-      granted: false    # OFF until the owner confirms DaniRep allows clipping (and monetized clips)
-      source: ""
+      granted: true
+      source: "Gave permission to clip on stream (confirmed by channel owner, 2026-11-18)"
       evidence: ""
       terms: ""
     links:
       description: "Vídeo completo: https://youtube.com/@thedanirep"
     vods: "https://www.youtube.com/@thedanirep/videos"
+
+  - id: peereira
+    display_name: "Peereira"
+    credit: "Peereira (twitch.tv/peereira7)"
+    language: Spanish
+    # no fixed facecam: the producer detects his camera in every clip
+    match:
+      - "twitch.tv/peereira7"
+      - "peereira"
+    permission:
+      granted: true
+      source: "Gave permission to clip on stream (confirmed by channel owner, 2026-11-18)"
+      evidence: ""      # TODO: timestamp/link of the stream moment where he says it
+      terms: ""
+    links:
+      description: "Directo completo: https://twitch.tv/peereira7"
+    vods: "https://www.twitch.tv/peereira7/videos?filter=archives&sort=time"
+    live: "https://www.twitch.tv/peereira7"

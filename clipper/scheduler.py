@@ -76,11 +76,10 @@ def reprioritize(conn: sqlite3.Connection) -> None:
     from .uploaders import youtube
     locked = "('published')" if youtube.can_edit() else "('scheduled','published')"
     now = datetime.now(UTC).isoformat()
-    pf = _priority_from() or "9999"
     rows = conn.execute(
-        "SELECT c.id, c.slot_at, c.score, s.created_at >= ? AS prio FROM clips c JOIN streams s ON s.id=c.stream_id "
+        "SELECT c.id, c.slot_at, c.score, COALESCE(s.gta6, 0) AS prio FROM clips c JOIN streams s ON s.id=c.stream_id "
         "WHERE c.status='approved' AND c.slot_at IS NOT NULL AND c.slot_at > ? "
-        f"AND c.id NOT IN (SELECT clip_id FROM uploads WHERE status IN {locked})", (pf, now)
+        f"AND c.id NOT IN (SELECT clip_id FROM uploads WHERE status IN {locked})", (now,)
     ).fetchall()
     slots = sorted(r["slot_at"] for r in rows)
     ranked = sorted(rows, key=lambda r: (-r["prio"], -(r["score"] or 0), r["id"]))
@@ -174,7 +173,7 @@ def _record(conn, clip_id, platform, status, remote_id=None, url=None, error=Non
         "INSERT INTO uploads (clip_id, platform, remote_id, url, status, error) VALUES (?,?,?,?,?,?) "
         "ON CONFLICT(clip_id, platform) DO UPDATE SET remote_id=excluded.remote_id, url=excluded.url, "
         "status=excluded.status, error=excluded.error, "
-        "attempts=CASE WHEN excluded.status='failed' THEN COALESCE(uploads.attempts,0)+1 ELSE uploads.attempts END",
+        "attempts=CASE WHEN excluded.status='failed' THEN (uploads.attempts,0)+1 ELSE uploads.attempts END",
         (clip_id, platform, remote_id, url, status, error),
     )
 
@@ -317,10 +316,9 @@ def _publish_due(dry_run: bool = False) -> None:
     with db.connect() as conn:
         reprioritize(conn)
         clips = conn.execute(
-            "SELECT clips.*, streams.creator_id, streams.created_at >= ? AS prio FROM clips "
+            "SELECT clips.*, streams.creator_id, COALESCE(streams.gta6, 0) AS prio FROM clips "
             "JOIN streams ON streams.id = clips.stream_id "
-            "WHERE clips.status IN ('approved','published') AND slot_at IS NOT NULL ORDER BY slot_at",
-            (_priority_from() or "9999",)).fetchall()
+            "WHERE clips.status IN ('approved','published') AND slot_at IS NOT NULL ORDER BY slot_at").fetchall()
         clips = sorted(clips, key=lambda c: -c["prio"])  # launch clips get YouTube's upload cap first
         yt_24h = conn.execute("SELECT COUNT(*) FROM uploads WHERE platform='youtube' AND remote_id IS NOT NULL "
                               "AND created_at > datetime('now','-1 day')").fetchone()[0]

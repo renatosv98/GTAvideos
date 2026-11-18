@@ -3,6 +3,8 @@ Publishing (agent 4) runs on its own schedule (`clipper publish-due`); the analy
 Every step saves its output, so re-running the same link resumes where it stopped."""
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from pathlib import Path
 
 from . import db
@@ -21,8 +23,16 @@ def process(url: str, creator_id: str | None = None, reselect: bool = False) -> 
             print(f"    already processed (stream #{row['id']}). Use --reselect to pick clips again.")
             return []
         if not row:
-            conn.execute("INSERT INTO streams (url, creator_id, title, duration) VALUES (?,?,?,?)",
-                         (url, creator.id, info.get("title"), info.get("duration")))
+            ts = info.get("timestamp") or info.get("release_timestamp")
+            if ts:
+                rec = datetime.fromtimestamp(ts, timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+            elif info.get("upload_date"):
+                d = info["upload_date"]; rec = f"{d[:4]}-{d[4:6]}-{d[6:]} 00:00:00"
+            else:
+                rec = None
+            from .download import is_gta6
+            conn.execute("INSERT INTO streams (url, creator_id, title, duration, recorded_at, gta6) VALUES (?,?,?,?,?,?)",
+                         (url, creator.id, info.get("title"), info.get("duration"), rec, int(is_gta6(info))))
         stream_id = conn.execute("SELECT id FROM streams WHERE url = ?", (url,)).fetchone()["id"]
 
     try:

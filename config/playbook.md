@@ -1,58 +1,72 @@
 # Playbook: what goes viral on this channel
-Written by the analyst (agent 5) from real view counts and read by the selector (agent 2) before every stream. It overrides the selector's defaults.
+Analyst (agent 5) → selector (agent 2). Read before every stream. It overrides the selector's defaults.
 
 ## Data status, 17 Nov (read first)
-- YouTube: 9 clips live (#2, #4–#11). The oldest is #2 at 133.8 h and the newest is #11 at 1.8 h. The owner removed #1, and #3 is not in the data.
-- Instagram: 6 clips live since 16 Nov (#2, #4, #5, #6, #7, #11). #8–#10 aren't posted yet, so their Instagram numbers are missing, not weak.
-- TikTok: there are no stats for any clip because the video.list scope isn't authorized. Some copies may be unposted drafts (#11). Treat TikTok as unknown, not zero.
-- The data has no post time per platform. age_hours and views_per_hour mix platforms, so there is no 24 h / 72 h comparison yet. Don't quote views_per_hour (for example #11's 1287.78).
-- Nothing is confirmed yet. A pattern needs at least 3 clips at 2x the platform median. YouTube median is 17.5 (IlloJuan, n=8), so the bar is 35 and no clip reaches it. Instagram median is 1928 (IlloJuan, n=5), so the bar is 3856 and no clip reaches it.
+- The data covers 16 clips: #2, #4–#11, #19–#22, #27, #35, #43. Missing from the data: #3, #12–#18, #23–#26, #28–#34, #36–#42, and Rubius #12–#15 and #50–#53. The owner removed #1.
+- YouTube: all 16 clips are listed, the oldest being #2 at 146.4 h. Sprint clips #20, #21, #22 and #43 show 0 at 0.4–2.4 h. They may not be public yet, so treat them as unknown, not weak.
+- Instagram: all 16 clips have views. #2, #4–#7 and #11 went live on 16 Nov. #8–#10 were posted later (caught up by 17 Nov 22:00), so their Instagram copies are much younger than their age_hours.
+- TikTok: no stats, because the video.list scope isn't authorized. Unposted drafts are not zeros.
+- age_hours is one number per clip, not per platform, so no 24 h or 72 h comparison is possible yet. In the data, #11 is 14.4 h old, not ~38 h.
+- The bar to confirm a pattern is at least 3 clips at 2x the platform median within a cohort. Old IlloJuan batch (n=8): the YouTube median is 20, so the bar is 40, and no clip reaches it. The Instagram median is 1925.5, so the bar is 3851, and no clip reaches it. Sprint (n=7): the Instagram median is 175, so the bar is 350, and only #20 reaches it. The YouTube median is 0, so there is no usable bar. Nothing is confirmed.
 
-## Views per clip: YouTube / TikTok / Instagram (IG likes)
-- #7 IlloJuan, GTA V footage: 27 / n.a. / 2399 (39)
-- #4 IlloJuan, GTA V footage: 19 / n.a. / 930 (28, 1 comment)
-- #8 IlloJuan, GTA V footage: 19 / n.a. / not posted
-- #9 IlloJuan, GTA 6 footage (download menu): 19 / n.a. / not posted
-- #5 IlloJuan, GTA V footage: 16 / n.a. / 195 (6)
-- #2 IlloJuan, GTA V footage: 8 / n.a. / 1928 (92)
-- #6 IlloJuan, GTA 6 footage (fan sky-drawing, news): 8 / n.a. / 2101 (88)
-- #10 IlloJuan, GTA 6 footage (festival webpage): 4 / n.a. / not posted
-- #11 Rubius, GTA 6 footage (download menu): 2 at 1.8 h / n.a. / 2316 (39)
+## Views per clip: YouTube / TikTok / Instagram
+Rubius:
+- #11, GTA 6 footage (pre-launch), download menu, 14.4 h: 2221 / n.a. / 2552
+Old IlloJuan batch (posted 4 h apart, 102.4–146.4 h):
+- #7, GTA V footage: 28 / n.a. / 2440
+- #8, GTA V footage: 25 / n.a. / 2430
+- #4, GTA V footage: 21 / n.a. / 967
+- #5, GTA V footage: 20 / n.a. / 200
+- #9, GTA 6 footage (pre-launch), download menu: 20 / n.a. / 1905
+- #6, GTA 6 footage (pre-launch), sky drawing: 10 / n.a. / 2160
+- #2, GTA V footage: 8 / n.a. / 1946
+- #10, GTA 6 footage (pre-launch), festival webpage: 6 / n.a. / 202
+Sprint, 17–18 Nov (30 min apart, IlloJuan; GTA V footage inferred from the content):
+- #27, 2.9 h, dumpster, title template "…y pasa esto": 840 / n.a. / 265
+- #19, 3.4 h, Rambo, specific title: 576 / n.a. / 175
+- #35, 1.4 h, perfect drive, title template "…y pasa esto": 2 / n.a. / 250
+- #20, 2.4 h, helicopter, specific title: 0 / n.a. / 2205
+- #43, 0.9 h, emergency landing, specific title: 0 / n.a. / 173
+- #21, 1.9 h, shooting range, specific title: 0 / n.a. / 158
+- #22, 0.4 h, mystery car, specific title: 0 / n.a. / 4
 
 ## Owner rules (always respect these)
 - Views are the goal metric, measured per platform.
 - No slow talking-head clips without a payoff. #1 was removed for this.
-- GTA 6 news, trailer and download reactions are allowed. Rank or limit them, but never ban them.
+- GTA 6 news, trailer and download reactions are allowed. Rank or limit them, never ban them.
 
-## What gets views (IlloJuan only, early signals)
-- A plan going wrong, with an irony arc (a brag, then instant failure). #7 is the only clip at the top on both YouTube (27) and Instagram (2399).
-- A first line that states the event: #7 opens "Acaba de atropellar a una mujer". #2 opens with a warm-up and got 8 on YouTube but 1928 on Instagram, so the cost of a warm-up may only apply on YouTube.
-- Strong visual payoffs get Instagram likes: #2 has 92 (the collapse at the finish line) and #6 has 88 (the finished drawing).
+## What gets views (early signals, none confirmed)
+- Irony arc (a brag or plan, then an instant fail on screen). It led every cohort on every platform. #7 tops the old batch (28 / 2440). In the sprint, #27 (840) and #19 (576) top YouTube and #20 (2205) tops Instagram. The channel's first comments mock him on #27 and #19.
+- Open on the brag or the event itself: #27 "si me meto en el puto contenedor", #19 "Voy a tener que mataros".
+- Rubius GTA 6 anticlimax (#11). It's the best clip on both platforms, but it's only 1 clip, and the creator, GTA 6 hype and the YouTube jump are confounded.
+- 20–26 s. The 3 sprint leaders run 23.2–25.6 s. This is a weak signal.
 
-## Avoid (these rank lower; nothing here is banned)
-- Webpage or facecam clips built on one line: rank them last. #10 has 4 on YouTube; check again once it's on Instagram.
-- Warm-up lines before the action. Cut straight to the event.
-- Hooks that only name the topic (#10 "Las normas del festival de GTA 6").
+## Avoid (rank lower; nothing here is banned)
+- Webpage or facecam one-liners: #10 (6 / 202) is last in the old batch.
+- Warm-up or recap openings: #5 (recap, 20 / 200) and #2 (warm-up, 8 on YouTube).
+- Hooks that only name the topic (#10).
+- Sprint clips over 30 s: #21 (34.9 s) and #43 (33.4 s) are lowest so far. This is provisional because both are young.
 
 ## Creators (keep their findings separate)
-- IlloJuan: everything above (#2, #4–#10).
-- Rubius: 1 data point, #11 (download anticlimax). It's too young to read. It uses the same format as IlloJuan's #9 (19 on YouTube), so compare the two once #9 is on Instagram and #11 is 72 h old.
+- IlloJuan: everything above.
+- Rubius: only #11 is in the data. #9 (IlloJuan, 20 / 1905) uses the same format but was posted before YouTube woke up, so there is no same-age comparison.
 - Auronplay: no clips yet.
 
 ## GTA 6 gameplay (post-launch, from 19 Nov)
 - No clips yet. Start a fresh tally here. Pre-launch findings may not carry over.
 
 ## Hypotheses (status)
-- TESTING: The irony arc is the strongest format (#7). It needs 2 more clips.
-- TESTING (new): Instagram rewards GTA 6 hype and visual reveals more than YouTube does. #6 got 8 on YouTube and 2101 on Instagram. This needs same-age Instagram data.
-- TESTING (new): Title templates ("…y pasa esto" / "…y mira cuánto le pagan") vs. titles that name the event. All 9 published titles name the event, and the template only appears as #7's hook. No data yet.
-- TESTING: Series/prequel clips. #8 got 19 on YouTube vs. 8 for #2, and #8 isn't on Instagram yet.
-- PROVISIONAL: Any cap such as "max 1 non-gameplay per 5". No clip type meets the bar, so it's a soft guide only.
-- DROPPED: "Non-gameplay only works with a personal payoff." #6 has no personal stakes and got 2101 on Instagram.
-- DROPPED from Avoid: "Someone else's creation with no stakes" (#6). The two platforms disagree.
-- No signal yet: music mood, clip length (all clips are 22–43 s).
+- TESTING (stronger): The irony arc leads each cohort but doesn't clear the bar yet.
+- TESTING: Title templates vs. titles naming the event. 2 template clips (#27: 840 / 265; #35: 2 / 250) vs. 5 specific titles. The closest pair in age is #27 at 2.9 h vs. #19 at 3.4 h (576 / 175), which favours the template, but n=1 each. "…y mira cuánto le pagan" has 0 clips in the data.
+- TESTING: Series/prequel clips. #8 (25 / 2430) beat #2 (8 / 1946). #43 (flight school part 2) is too young to read.
+- HUNCH: Sprint clips compete with each other on Instagram. Only #20 of 7 got past 265, and Instagram splits roughly 2000 vs. 200 (#5: 200, #10: 202).
+- HUNCH: YouTube jumped across the whole channel in the last ~15 h. Don't credit content alone.
+- DROPPED: "Instagram rewards GTA 6 hype more." The YouTube/Instagram gap was the same for GTA V clips (#7: 28 / 2440) and GTA 6 clips (#6: 10 / 2160).
+- PROVISIONAL: Caps such as "max 1 non-gameplay per 5". No content type meets the bar, so it's a soft guide only.
+- No signal yet: music mood.
 
-## Prediction calibration
-- Rank correlation between predicted chance and views is about 0 on YouTube (n=8) and about −0.6 on Instagram (n=5). #2 was predicted at 80% and got 8 on YouTube.
-- Keep predictions between 25 and 60% until they show a positive rank correlation on a platform over at least 10 clips.
-- With each prediction, name the hypothesis being tested, the title template used, the creator and the footage tag.
+## Prediction calibration (Spearman rank correlation, predicted chance vs. views)
+- Old batch (n=8): +0.01 on YouTube, −0.08 on Instagram. #2 was predicted at 80 and got 8 on YouTube.
+- Sprint (n=7): +0.76 on YouTube, +0.72 on Instagram. Don't trust these yet: predictions only spanned 48–55, older clips happened to get the higher predictions, and the 4 YouTube zeros may be unposted.
+- 16 clips are scored so far. If the correlation is still ≤0 at 20 clips, rank by playbook pattern instead of predicted chance.
+- Keep predictions between 25 and 60 and use the full range. With each prediction, name the hypothesis being tested, the title template, the creator and the footage tag.
