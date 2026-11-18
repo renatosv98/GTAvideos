@@ -136,14 +136,30 @@ def _existing(limit: int = 60) -> str:
     return "\n".join(f"- {r['title']}" for r in rows) or "(none yet)"
 
 
+def _duration(video: Path) -> float | None:
+    r = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(video)],
+                       capture_output=True, text=True)
+    try:
+        return float(r.stdout.strip())
+    except ValueError:
+        return None
+
+
 def _frames(video: Path, start: float, end: float, n: int, out_dir: Path, tag: str) -> list[Path]:
+    """n still frames between start and end, kept inside the video (a moment chosen at the very end of a live
+    chunk may run past the file). A frame that can't be grabbed is skipped, never fatal."""
+    dur = _duration(video)
+    if dur:
+        end = min(end, dur - 0.5)
+        start = min(start, max(0.0, end - 1))
     paths = []
     for k in range(n):
-        t = start + (end - start) * (k + 1) / (n + 1)
+        t = max(0.0, start + (end - start) * (k + 1) / (n + 1))
         p = out_dir / f"{tag}_{k}.jpg"
-        subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", f"{t:.2f}", "-i", str(video), "-frames:v", "1",
-                        "-vf", "scale=640:-2", "-q:v", "5", str(p)], check=True)
-        paths.append(p)
+        r = subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", f"{t:.2f}", "-i", str(video), "-frames:v", "1",
+                            "-vf", "scale=640:-2", "-q:v", "5", str(p)], capture_output=True)
+        if r.returncode == 0 and p.exists() and p.stat().st_size:
+            paths.append(p)
     return paths
 
 
