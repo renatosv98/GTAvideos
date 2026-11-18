@@ -289,6 +289,57 @@ def selftest() -> list[str]:
     return errors
 
 
+NOTE_TITLE = "TikTok captions · GTAuploads"
+
+
+def tiktok_captions_note() -> bool:
+    """TikTok's draft API takes no caption, so every waiting draft's caption (hashtags, credit, music) goes into an
+    Apple Note that syncs to the owner's iPhone: open TikTok draft, copy its caption from the note, paste, Post.
+    Rewritten only when the set of waiting drafts changes. Returns True if the note was updated."""
+    import hashlib
+    import html
+    import json
+    import subprocess
+
+    from .config import DATA
+    creators = {c.id: c for c in load_creators()}
+    with db.connect() as conn:
+        rows = conn.execute(
+            "SELECT clips.*, streams.creator_id, u.created_at AS sent FROM uploads u JOIN clips ON clips.id=u.clip_id "
+            "JOIN streams ON streams.id=clips.stream_id WHERE u.platform='tiktok' AND u.status='inbox' "
+            "ORDER BY u.created_at").fetchall()
+    parts = [f"<h1>{NOTE_TITLE}</h1><div>Drafts waiting: {len(rows)}. Oldest first (same order as your TikTok "
+             "drafts, bottom to top). Copy the text under each title into its draft, then Post.</div><div><br></div>"]
+    for r in rows:
+        cr = creators.get(r["creator_id"])
+        cap = _short_caption(r, cr, "tiktok")
+        parts.append(f"<h2>#{r['id']} · {html.escape(r['title'][:60])}</h2>"
+                     + "".join(f"<div>{html.escape(line) or '<br>'}</div>" for line in cap.split("\n"))
+                     + "<div><br></div>")
+    if not rows:
+        parts.append("<div>No drafts waiting 🎉</div>")
+    body = "".join(parts)
+    state = DATA / "tiktok_note.hash"
+    digest = hashlib.sha1(body.encode()).hexdigest()
+    if state.exists() and state.read_text() == digest:
+        return False
+    script = f"""
+tell application "Notes"
+    set b to {json.dumps(body, ensure_ascii=False)}
+    set found to (notes whose name is {json.dumps(NOTE_TITLE, ensure_ascii=False)})
+    if (count of found) > 0 then
+        set body of item 1 of found to b
+    else
+        make new note with properties {{body:b}}
+    end if
+end tell"""
+    r = subprocess.run(["osascript", "-e", script], capture_output=True, text=True, timeout=60)
+    if r.returncode:
+        raise RuntimeError(r.stderr.strip()[:200])
+    state.write_text(digest)
+    return True
+
+
 def _record(conn, clip_id, platform, status, remote_id=None, url=None, error=None):
     conn.execute(
         "INSERT INTO uploads (clip_id, platform, remote_id, url, status, error, attempts) "
@@ -485,6 +536,12 @@ def publish_due(dry_run: bool = False) -> None:
             _publish_due(dry_run)
         except SafetyStop:
             return  # already alerted; nothing more is posted until the problem is fixed
+        if not dry_run and SETTINGS["platforms"]["tiktok"].get("mode") == "inbox":
+            try:
+                if tiktok_captions_note():
+                    print(f"TikTok captions updated in Notes ('{NOTE_TITLE}')")
+            except Exception as e:  # never let the note break publishing
+                print(f"TikTok captions note failed: {e}")
         if not dry_run:
             try:
                 from . import health
