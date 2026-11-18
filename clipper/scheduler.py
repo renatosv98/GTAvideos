@@ -639,6 +639,10 @@ def _publish_due(dry_run: bool = False) -> None:
             "OR (status='failed' AND attempts >= ?)", (MAX_ATTEMPTS,))}
     done |= set(_ledger())  # posted per the ledger = posted, whatever the database says
 
+    # GTA 6 focus (owner, 18 Nov): while any GTA 6 clip still waits for a platform, no other clip goes to it
+    hold = {p: any(c["prio"] and (c["id"], p) not in done for c in clips)
+            for p in ("youtube", "tiktok", "instagram")} if SETTINGS["schedule"].get("gta6_hold", True) else {}
+
     fl = _fast_lane()
     yt_cap = int(SETTINGS["platforms"]["youtube"].get("daily_upload_cap", 10))
     yt_reserve = int(fl.get("youtube_reserve_for_priority", 0))
@@ -662,6 +666,7 @@ def _publish_due(dry_run: bool = False) -> None:
 
         yt_reserved = not clip["prio"] and yt_24h >= yt_cap - yt_reserve  # keep uploads free for launch clips
         if (plat["youtube"]["enabled"] and not yt_full and not yt_reserved and (clip["id"], "youtube") not in done
+                and (clip["prio"] or not hold.get("youtube"))
                 and slot - now <= ahead):
             publish_at = slot if slot > now + timedelta(minutes=15) else None
             print(f"#{clip['id']} -> YouTube ({'scheduled ' + fmt_local(clip['slot_at']) if publish_at else 'now'})")
@@ -687,6 +692,7 @@ def _publish_due(dry_run: bool = False) -> None:
         if tiktok_full:
             pass
         elif (plat["tiktok"]["enabled"] and (clip["id"], "tiktok") not in done and slot <= now
+              and (clip["prio"] or not hold.get("tiktok"))
               and _tiktok_inbox_count() < TIKTOK_INBOX_MAX
               and not (late and "tiktok" in recent)):
             print(f"#{clip['id']} -> TikTok")
@@ -709,6 +715,7 @@ def _publish_due(dry_run: bool = False) -> None:
                             _record(conn, clip["id"], "tiktok", "failed", error=str(e))
 
         if (plat.get("instagram", {}).get("enabled") and (clip["id"], "instagram") not in done and slot <= now
+                and (clip["prio"] or not hold.get("instagram"))
                 and not (late and "instagram" in recent) and not ig_stop and not _ig_paused() and _ig_gap_ok()):
             print(f"#{clip['id']} -> Instagram")
             if not dry_run:

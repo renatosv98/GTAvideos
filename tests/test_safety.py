@@ -116,3 +116,27 @@ def test_notifications_escape_safely():
         for line in p.read_text().splitlines():
             if "display notification" in line and "json.dumps(" in line:
                 assert "ensure_ascii=False" in line, f"{p.name}: {line.strip()[:80]}"
+
+
+def test_gta6_hold_blocks_older_clips(scratch, monkeypatch):
+    """While a GTA 6 clip waits for a platform, no non-GTA 6 clip is posted there."""
+    from clipper.uploaders import instagram, tiktok, youtube
+    posted = []
+    monkeypatch.setattr(instagram, "upload", lambda *a, **k: "m")
+    monkeypatch.setattr(instagram, "permalink", lambda *a: None)
+    monkeypatch.setattr(instagram, "already_posted", lambda *a, **k: None)
+    monkeypatch.setattr(tiktok, "upload", lambda *a, **k: "p")
+    monkeypatch.setattr(youtube, "upload", lambda *a, **k: "v")
+    monkeypatch.setattr(scheduler, "_tiktok_inbox_count", lambda: 0)
+    monkeypatch.setattr(scheduler, "_ig_gap_ok", lambda: True)
+    monkeypatch.setattr(scheduler, "_ig_paused", lambda: False)
+    real = scheduler._posted
+    monkeypatch.setattr(scheduler, "_posted", lambda cid, p, *a, **k: (posted.append((cid, p)), real(cid, p, *a, **k)))
+    scheduler._publish_due(dry_run=False)
+    with scratch() as c:
+        g6 = {r[0] for r in c.execute("SELECT c.id FROM clips c JOIN streams s ON s.id=c.stream_id WHERE s.gta6=1")}
+        waiting = {(r[0], p) for r in c.execute("SELECT c.id FROM clips c JOIN streams s ON s.id=c.stream_id "
+                                                 "WHERE s.gta6=1 AND c.status='approved'") for p in ("youtube", "tiktok", "instagram")}
+    for cid, p in posted:
+        if cid not in g6:
+            assert not any(w[1] == p and w not in posted and (w[0], p) not in scheduler._ledger() for w in waiting), (cid, p)
