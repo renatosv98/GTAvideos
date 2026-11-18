@@ -381,7 +381,7 @@ def run() -> int:
     LAST.write_text(datetime.now(timezone.utc).isoformat())
     print(f"    {len(r['reviews'])} agents reviewed · instructions upgraded: {', '.join(changed) or 'none'} "
           f"· report: {REPORT.relative_to(ROOT)}")
-    subprocess.run(["osascript", "-e", f"display notification {json.dumps(r['summary'][:200])} "
+    subprocess.run(["osascript", "-e", f"display notification {json.dumps(r['summary'][:200], ensure_ascii=False)} "
                                        f"with title \"GTAuploads manager\""], check=False)
     return 0
 

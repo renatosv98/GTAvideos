@@ -78,6 +78,29 @@ def check() -> list[tuple[str, str]]:
         problems.append(("tiktok-inbox", f"TikTok drafts waiting over 12 h: #{', #'.join(map(str, old))}. Open TikTok "
                                          "→ Inbox → System notifications → tap each → Next → Post."))
 
+    # 1c. no clip may be posted twice on Instagram (the API can't delete: the owner removes extras by hand)
+    if "instagram" in platforms:
+        try:
+            import requests
+
+            from .uploaders import instagram as ig
+            tok = ig._token()
+            d = ig._check(requests.get(f"{ig._host()}/{ig._v()}/{tok['user_id']}/media", params={
+                "fields": "caption,permalink", "limit": 50, "access_token": tok["access_token"]}, timeout=30), "media")
+            seen: dict[str, str] = {}
+            dups = []
+            for m in reversed(d.get("data", [])):  # oldest first: the first copy is the one to keep
+                k = ig._key(m.get("caption", ""))
+                if k in seen:
+                    dups.append(m.get("permalink", m["id"]))
+                else:
+                    seen[k] = m["id"]
+            if dups:
+                problems.append(("ig-duplicates", f"{len(dups)} duplicate Reel(s) on Instagram, delete them in the "
+                                                  f"app (⋯ → Delete): {' '.join(dups)}"))
+        except Exception as e:
+            problems.append(("ig-api", f"Could not check Instagram: {str(e)[:150]}"))
+
     # 2. YouTube: scheduled videos must actually go public, and none may be rejected/failed
     if "youtube" in platforms:
         yt_ids = {u["remote_id"]: u["clip_id"] for u in ups
@@ -129,7 +152,7 @@ def notify(problems: list[tuple[str, str]]) -> None:
         if now - state.get(key, 0) < REPEAT_HOURS * 3600:
             continue
         state[key] = now
-        subprocess.run(["osascript", "-e", f"display notification {json.dumps(msg)} with title \"GTAuploads\" "
+        subprocess.run(["osascript", "-e", f"display notification {json.dumps(msg, ensure_ascii=False)} with title \"GTAuploads\" "
                                            f"sound name \"Glass\""], check=False)
     active = {k for k, _ in problems}
     STATE.write_text(json.dumps({k: v for k, v in state.items() if k in active}))

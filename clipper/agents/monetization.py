@@ -184,8 +184,8 @@ def run() -> int:
     LAST.write_text(datetime.now(timezone.utc).isoformat())
     print(f"    report → {REPORT.relative_to(ROOT)}")
     title = "💰 GTAuploads: you can apply for monetization!" if r["eligible_now"] else "GTAuploads monetization"
-    subprocess.run(["osascript", "-e", f"display notification {json.dumps(r['summary'][:200])} "
-                                       f"with title {json.dumps(title)} sound name \"Glass\""], check=False)
+    subprocess.run(["osascript", "-e", f"display notification {json.dumps(r['summary'][:200], ensure_ascii=False)} "
+                                       f"with title {json.dumps(title, ensure_ascii=False)} sound name \"Glass\""], check=False)
     return 0
 
 

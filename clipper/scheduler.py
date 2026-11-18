@@ -175,7 +175,7 @@ def _record(conn, clip_id, platform, status, remote_id=None, url=None, error=Non
         "INSERT INTO uploads (clip_id, platform, remote_id, url, status, error) VALUES (?,?,?,?,?,?) "
         "ON CONFLICT(clip_id, platform) DO UPDATE SET remote_id=excluded.remote_id, url=excluded.url, "
         "status=excluded.status, error=excluded.error, "
-        "attempts=CASE WHEN excluded.status='failed' THEN (uploads.attempts,0)+1 ELSE uploads.attempts END",
+        "attempts=CASE WHEN excluded.status='failed' THEN COALESCE(uploads.attempts,0)+1 ELSE uploads.attempts END",
         (clip_id, platform, remote_id, url, status, error),
     )
 
@@ -199,12 +199,62 @@ def _tags(tags) -> str:
     return " ".join(t if t.startswith("#") else f"#{t}" for t in (tags or []))
 
 
+HASHTAG_RE = re.compile(r"(?<!\w)#\w+")
+
+
+def _is_gta6(clip) -> bool:
+    """GTA 6 gameplay stream, or a clip that is about GTA 6 (launch, download, leaks) even if played in GTA 5."""
+    from .download import GTA6_RE
+    if "prio" in clip.keys() and clip["prio"]:
+        return True
+    pk = _pack(clip)
+    text = " ".join(str(x or "") for x in (clip["title"], clip["caption"], pk.get("youtube_title")))
+    if GTA6_RE.search(text):
+        return True
+    with db.connect() as conn:
+        r = conn.execute("SELECT COALESCE(gta6,0) FROM streams WHERE id=?", (clip["stream_id"],)).fetchone()
+    return bool(r and r[0])
+
+
+def _yt_hashtags(clip, creator=None) -> list[str]:
+    """3-5 hashtags, most important first (YouTube shows the first 3 above the title):
+    game, creator, Spanish GTA community, then the growth agent's specific ones. Never #Shorts (no effect) and
+    never GTA 6 hashtags on a clip that has nothing to do with GTA 6 (misleading tags hurt reach)."""
+    from .download import GTA6_RE
+    g6 = _is_gta6(clip)
+    base = ["#GTA6"] if g6 else ["#GTA5", "#GTA"]
+    if creator:
+        base.append("#" + re.sub(r"\W", "", creator.display_name))
+    base.append("#GTA6Español" if g6 else "#GTAenEspañol")
+    extra = [t if t.startswith("#") else f"#{t}" for t in (_pack(clip).get("youtube_hashtags") or [])]
+    extra = [t.replace(" ", "") for t in extra if t.lower() != "#shorts" and (g6 or not GTA6_RE.search(t))]
+    out, seen = [], set()
+    for t in base + extra:
+        if t.lower() not in seen:
+            seen.add(t.lower())
+            out.append(t)
+    return out[:5]
+
+
 def _yt_title(clip) -> str:
-    return (_pack(clip).get("youtube_title") or clip["title"])[:100]
+    """Growth agent's title + the game hashtag (a clickable link in a Short's title) when it fits."""
+    t = (_pack(clip).get("youtube_title") or clip["title"]).strip()
+    if "#" not in t:
+        tag = " #GTA6" if _is_gta6(clip) else " #GTA"
+        if len(t) + len(tag) <= 100:
+            t += tag
+    return t[:100]
 
 
 def _yt_tags(clip) -> list[str]:
-    return _pack(clip).get("youtube_tags") or []
+    """Search tags: game-correct base tags + the growth agent's (GTA 6 ones dropped on non-GTA 6 clips)."""
+    from .download import GTA6_RE
+    g6 = _is_gta6(clip)
+    base = (["GTA 6", "GTA6", "GTA VI", "Grand Theft Auto VI", "GTA 6 español"] if g6
+            else ["GTA", "GTA 5", "GTA V", "Grand Theft Auto V", "GTA en español"])
+    own = [t.lstrip("#") for t in (_pack(clip).get("youtube_tags") or []) if t.lower().lstrip("#") != "shorts"]
+    own = [t for t in own if g6 or not (GTA6_RE.search(t) or "grand theft auto vi" in t.lower())]
+    return list(dict.fromkeys(base + own))
 
 
 FOLLOW_RE = re.compile(r"s[ií]gue(nos|me)|suscr[ií]bete|follow", re.I)
@@ -220,13 +270,15 @@ def _with_cta(body: str, platform: str) -> str:
 
 def _description(clip, creator) -> str:
     pk = _pack(clip)
-    parts = [_with_cta(pk.get("youtube_description") or clip["caption"] or "", "youtube"), ""]
+    body = HASHTAG_RE.sub("", pk.get("youtube_description") or clip["caption"] or "")  # hashtags go in one place
+    body = re.sub(r"[ \t]+\n|[ \t]{2,}", lambda m: "\n" if "\n" in m.group() else " ", body).strip()
+    parts = [_with_cta(body, "youtube"), ""]
     parts.append(f"Clip from {creator.credit}.")  # credit lines are always added by code, never left to an agent
     if creator.links.get("description"):
         parts.append(creator.links["description"])
     if mc := _music_credit(clip):
         parts.append(mc)
-    parts += ["", _tags(pk.get("youtube_hashtags")) or clip["hashtags"] or ""]
+    parts += ["", " ".join(_yt_hashtags(clip, creator))]
     return "\n".join(parts).strip()
 
 

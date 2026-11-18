@@ -238,7 +238,7 @@ def run(force: bool = False) -> int:
     REPORT.write_text(f"# Analyst report {stamp}\n\n{r['summary']}\n\n## Feedback to the selector\n"
                       + "\n".join(f"- {m}" for m in r["selector_feedback"]) + "\n")
     print(f"    {r['summary']}\n    playbook updated; report in {REPORT.relative_to(ROOT)}")
-    subprocess.run(["osascript", "-e", f"display notification {json.dumps(r['summary'][:220])} "
+    subprocess.run(["osascript", "-e", f"display notification {json.dumps(r['summary'][:220], ensure_ascii=False)} "
                                        f"with title \"GTAuploads analyst\""], check=False)
     return 0
 

@@ -77,8 +77,6 @@ def upload(path: Path, title: str, description: str, publish_at: datetime | None
     creds = _creds()
     _check_channel(creds)
     yt = build("youtube", "v3", credentials=creds, cache_discovery=False)
-    if "#shorts" not in (title + description).lower():
-        description = f"{description}\n#Shorts"
     status = {"selfDeclaredMadeForKids": cfg.get("made_for_kids", False)}
     if publish_at:
         status.update(privacyStatus="private", publishAt=publish_at.strftime("%Y-%m-%dT%H:%M:%SZ"))
@@ -90,6 +88,8 @@ def upload(path: Path, title: str, description: str, publish_at: datetime | None
             "description": description[:5000],
             "tags": list(dict.fromkeys([*cfg.get("default_tags", []), *(t.lstrip("#") for t in (tags or []))]))[:30],
             "categoryId": cfg.get("category_id", "20"),
+            "defaultLanguage": cfg.get("language", "es"),
+            "defaultAudioLanguage": cfg.get("language", "es"),
         },
         "status": status,
     }
@@ -128,7 +128,9 @@ def update(video_id: str, title: str | None = None, description: str | None = No
     if tags is not None:
         cfg = SETTINGS["platforms"]["youtube"]
         sn["tags"] = list(dict.fromkeys([*cfg.get("default_tags", []), *(t.lstrip("#") for t in tags)]))[:30]
-    body = {"id": video_id, "snippet": {k: sn[k] for k in ("title", "description", "tags", "categoryId") if k in sn},
+    sn["defaultLanguage"] = sn["defaultAudioLanguage"] = SETTINGS["platforms"]["youtube"].get("language", "es")
+    body = {"id": video_id, "snippet": {k: sn[k] for k in ("title", "description", "tags", "categoryId",
+                                                           "defaultLanguage", "defaultAudioLanguage") if k in sn},
             "status": {"privacyStatus": st["privacyStatus"],
                        "selfDeclaredMadeForKids": st.get("selfDeclaredMadeForKids", False)}}
     if private:

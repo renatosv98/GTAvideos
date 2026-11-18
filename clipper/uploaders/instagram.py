@@ -158,6 +158,13 @@ def upload(path: Path, caption: str) -> str:
     if expected and tok.get("username", "").lower() != expected.lower():
         raise RuntimeError(f"Authorised Instagram account is @{tok.get('username')}, expected @{expected}.")
 
+    # Duplicate guard: Instagram sometimes answers an error although the Reel went live, so a retry would post it
+    # twice. If a recent Reel already carries this caption, it is this clip: return it instead of posting again.
+    existing = already_posted(caption, uid, token)
+    if existing:
+        print(f"   already on Instagram ({existing}); not posting again")
+        return existing
+
     if _cfg().get("upload_method", "github") == "github":
         # Instagram fetches the video from a public link: stage it as a temporary GitHub release file
         name, url = _stage(path)
@@ -168,9 +175,37 @@ def upload(path: Path, caption: str) -> str:
     else:
         cid = _create_and_wait(uid, token, caption, path=path)
 
-    pub = _check(requests.post(f"{_host()}/{_v()}/{uid}/media_publish",
-                               data={"creation_id": cid, "access_token": token}, timeout=60), "publish")
-    return pub["id"]
+    try:
+        pub = _check(requests.post(f"{_host()}/{_v()}/{uid}/media_publish",
+                                   data={"creation_id": cid, "access_token": token}, timeout=90), "publish")
+        return pub["id"]
+    except Exception:
+        time.sleep(20)  # the Reel may have gone live despite the error
+        existing = already_posted(caption, uid, token)
+        if existing:
+            return existing
+        raise
+
+
+def _key(caption: str) -> str:
+    return " ".join((caption or "").split())[:150].lower()
+
+
+def already_posted(caption: str, uid: str | None = None, token: str | None = None, hours: int = 72) -> str | None:
+    """Media id of a Reel posted in the last `hours` with the same caption start, else None."""
+    from datetime import datetime, timedelta, timezone
+    if not uid or not token:
+        tok = _token()
+        uid, token = tok["user_id"], tok["access_token"]
+    d = _check(requests.get(f"{_host()}/{_v()}/{uid}/media", params={
+        "fields": "id,caption,timestamp", "limit": 30, "access_token": token}, timeout=30), "recent media")
+    since = datetime.now(timezone.utc) - timedelta(hours=hours)
+    want = _key(caption)
+    for m in d.get("data", []):
+        ts = datetime.strptime(m["timestamp"], "%Y-%m-%dT%H:%M:%S%z")
+        if ts >= since and want and _key(m.get("caption", "")) == want:
+            return m["id"]
+    return None
 
 
 def _gh(*args: str) -> str:

@@ -65,7 +65,8 @@ platforms:
     channel_id: UCtEupstFEid-N-o_STg64gg   # uploads are refused if the authorised account is a different channel
     category_id: "20"       # Gaming
     daily_upload_cap: 10    # new channel: YouTube refuses more uploads per ~24 h
-    default_tags: ["GTA6", "GTA 6", "Grand Theft Auto VI", "Shorts"]
+    default_tags: []        # game-correct tags are added per clip (scheduler._yt_tags)
+    language: es            # title/description + audio language: Spanish viewers get recommended
     made_for_kids: false
   tiktok:
     enabled: true    # sandbox + inbox mode: clips land in @gtauploadsx drafts; tap Post in the app

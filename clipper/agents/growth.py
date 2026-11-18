@@ -179,7 +179,7 @@ def run() -> int:
     REPORT.write_text("\n".join(lines))
     LAST.write_text(datetime.now(timezone.utc).isoformat())
     print(f"    score {r['score']}/100 · {len(recs)} recommendations → {REPORT.relative_to(ROOT)}")
-    subprocess.run(["osascript", "-e", f"display notification {json.dumps(r['summary'][:200])} "
+    subprocess.run(["osascript", "-e", f"display notification {json.dumps(r['summary'][:200], ensure_ascii=False)} "
                                        f"with title \"GTAuploads growth ({r['score']}/100)\""], check=False)
     return 0
 
