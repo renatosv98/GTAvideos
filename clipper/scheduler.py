@@ -289,6 +289,64 @@ def selftest() -> list[str]:
     return errors
 
 
+IG_PAUSE_WORDS = ("API access blocked", "5258005", "Application request limit", "spam", "temporarily blocked",
+                  "action is blocked")
+
+
+def _ig_pause_file() -> Path:
+    from .config import DATA
+    return DATA / "instagram_paused.json"
+
+
+def _ig_paused() -> bool:
+    """Instagram blocked our API access: don't call it (more calls look worse). Probe at most once an hour;
+    when access is back, unpause and alert the owner."""
+    import json
+    import time
+    f = _ig_pause_file()
+    if not f.exists():
+        return False
+    st = json.loads(f.read_text())
+    if time.time() - st.get("last_probe", 0) < 3600:
+        return True
+    st["last_probe"] = time.time()
+    f.write_text(json.dumps(st))
+    try:
+        from .uploaders import instagram
+        instagram._token()  # cheapest call: account info
+    except Exception as e:
+        print(f"Instagram still blocked: {str(e)[:100]}")
+        return True
+    f.unlink(missing_ok=True)
+    _alarm_ok("Instagram API access is back: posting resumes (GTA 6 clips first, 90 min apart).")
+    return False
+
+
+def _ig_pause(reason: str) -> None:
+    import json
+    import time
+    if not _ig_pause_file().exists():
+        _ig_pause_file().write_text(json.dumps({"since": time.time(), "last_probe": time.time(), "reason": reason}))
+        _alarm(f"Instagram blocked our app ({reason[:90]}). Instagram posting paused; other platforms continue.")
+
+
+def _alarm_ok(msg: str) -> None:
+    import json
+    import subprocess
+    print(msg)
+    subprocess.run(["osascript", "-e", f"display notification {json.dumps(msg, ensure_ascii=False)} "
+                                       f"with title \"GTAuploads\" sound name \"Glass\""], check=False)
+
+
+def _ig_gap_ok() -> bool:
+    """At most one Reel every `min_gap_minutes` (bursts of posts get the app/account restricted)."""
+    gap = int(SETTINGS["platforms"].get("instagram", {}).get("min_gap_minutes", 90))
+    with db.connect() as conn:
+        r = conn.execute("SELECT COUNT(*) FROM uploads WHERE platform='instagram' AND status='published' "
+                         "AND created_at > datetime('now', ?)", (f"-{gap} minutes",)).fetchone()[0]
+    return r == 0
+
+
 NOTE_TITLE = "TikTok captions · GTAuploads"
 
 
@@ -585,7 +643,7 @@ def _publish_due(dry_run: bool = False) -> None:
     yt_cap = int(SETTINGS["platforms"]["youtube"].get("daily_upload_cap", 10))
     yt_reserve = int(fl.get("youtube_reserve_for_priority", 0))
 
-    tiktok_full = yt_full = False
+    tiktok_full = yt_full = ig_stop = False
     with db.connect() as conn:  # catch-up posts (clip's slot long past): at most one per platform every 3 h
         recent = {r["platform"] for r in conn.execute(
             "SELECT DISTINCT platform FROM uploads WHERE created_at > datetime('now','-3 hours') "
@@ -651,7 +709,7 @@ def _publish_due(dry_run: bool = False) -> None:
                             _record(conn, clip["id"], "tiktok", "failed", error=str(e))
 
         if (plat.get("instagram", {}).get("enabled") and (clip["id"], "instagram") not in done and slot <= now
-                and not (late and "instagram" in recent)):
+                and not (late and "instagram" in recent) and not ig_stop and not _ig_paused() and _ig_gap_ok()):
             print(f"#{clip['id']} -> Instagram")
             if not dry_run:
                 from .uploaders import instagram
@@ -663,8 +721,12 @@ def _publish_due(dry_run: bool = False) -> None:
                     raise
                 except Exception as e:
                     print(f"   Instagram failed: {e}")
-                    with db.connect() as conn:
-                        _record(conn, clip["id"], "instagram", "failed", error=str(e))
+                    if any(w.lower() in str(e).lower() for w in IG_PAUSE_WORDS):
+                        _ig_pause(str(e))  # not the clip's fault: don't burn its attempts
+                        ig_stop = True
+                    else:
+                        with db.connect() as conn:
+                            _record(conn, clip["id"], "instagram", "failed", error=str(e))
 
         if slot <= now and not dry_run:
             with db.connect() as conn:

@@ -76,6 +76,7 @@ platforms:
     long_cut: true          # also render a 61-90 s TikTok version when the moment supports it (Creator Rewards: 1 min+)
     extra_scopes: []        # add video.list once it's enabled in the TikTok portal (view counts for the analyst)
   instagram:
+    min_gap_minutes: 90     # at most one Reel per 90 min: bursts got the app's API access blocked (18 Nov)
     enabled: true           # Reels via GitHub staging (temporary release file, deleted after each post)
     username: gtauploadsx   # your Instagram handle (no @); posting is refused if the authorised account differs
     api_version: v27.0

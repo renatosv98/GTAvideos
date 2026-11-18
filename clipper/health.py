@@ -78,6 +78,14 @@ def check() -> list[tuple[str, str]]:
         problems.append(("tiktok-inbox", f"TikTok drafts waiting over 12 h: #{', #'.join(map(str, old))}. Open TikTok "
                                          "→ Inbox → System notifications → tap each → Next → Post."))
 
+    # 1b'. Instagram blocked our app: the owner must check Meta
+    pf = DATA / "instagram_paused.json"
+    if pf.exists():
+        problems.append(("ig-paused", "Instagram blocked our app's API access, so Instagram posting is paused (retried "
+                                      "hourly). Check developers.facebook.com → your app → Alerts, and Meta Business "
+                                      "Suite → Account quality."))
+        platforms = [p for p in platforms if p != "instagram"]
+
     # 1c. no clip may be posted twice on Instagram (the API can't delete: the owner removes extras by hand)
     if "instagram" in platforms:
         try:
