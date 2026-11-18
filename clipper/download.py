@@ -11,15 +11,30 @@ from yt_dlp.utils import download_range_func
 from .config import DATA, SETTINGS, Creator, resolve_creator
 
 
+PART_RE = re.compile(r"#part=(\d+)-(\d+)$")
+
+
+def split_part(url: str) -> tuple[str, tuple[float, float] | None]:
+    """'<vod>#part=A-B' (a chunk of a stream that may still be live) -> (vod url, (A, B) seconds)."""
+    m = PART_RE.search(url)
+    return (url[:m.start()], (float(m.group(1)), float(m.group(2)))) if m else (url, None)
+
+
+def part_url(vod: str, a: float, b: float) -> str:
+    return f"{vod}#part={int(a)}-{int(b)}"
+
+
 def probe(url: str) -> dict[str, Any]:
     with yt_dlp.YoutubeDL({"quiet": True, "skip_download": True, "noplaylist": True}) as ydl:
         return ydl.extract_info(url, download=False)
 
 
-def check_permission(url: str, creator_id: str | None = None) -> tuple[dict[str, Any], Creator]:
-    """Metadata-only lookup + allowlist check. Nothing is downloaded if this raises."""
+def check_permission(url: str, creator_id: str | None = None,
+                     allow_live: bool = False) -> tuple[dict[str, Any], Creator]:
+    """Metadata-only lookup + allowlist check. Nothing is downloaded if this raises.
+    allow_live: a finished chunk of a stream still in progress (live mode) may be taken."""
     info = probe(url)
-    if info.get("is_live"):
+    if info.get("is_live") and not allow_live:
         raise RuntimeError("Stream is still live. Run again once the VOD is available.")
     return info, resolve_creator(info, creator_id)
 
@@ -44,7 +59,9 @@ def is_gta6(info: dict[str, Any], since: str = "2026-11-18") -> bool:
     title of a video published on/after GTA 6 came out (before that, 'GTA 6' titles were GTA 5 countdown content)."""
     ch = info.get("chapters") or []
     if ch:
-        return sum(c["end_time"] - c["start_time"] for c in ch if GTA6_RE.search(c.get("title") or "")) >= 20 * 60
+        now = float(info.get("duration") or 0)  # live VOD: the chapter in progress has end == start; it runs to now
+        return sum((c["end_time"] if c["end_time"] > c["start_time"] else max(now, c["start_time"])) - c["start_time"]
+                   for c in ch if GTA6_RE.search(c.get("title") or "")) >= 20 * 60
     d = info.get("upload_date") or ""
     return bool(GTA6_RE.search(info.get("title") or "")) and f"{d[:4]}-{d[4:6]}-{d[6:]}" >= since
 
@@ -60,7 +77,7 @@ def gta_range(info: dict[str, Any]) -> tuple[float, float] | None:
     return None if (b - a) > 0.9 * dur else (a, min(b, dur))
 
 
-def download(url: str, info: dict[str, Any]) -> tuple[Path, Path | None]:
+def download(url: str, info: dict[str, Any], part: tuple[float, float] | None = None) -> tuple[Path, Path | None]:
     vid = info["id"]
     out_dir = DATA / "streams" / vid
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -73,8 +90,12 @@ def download(url: str, info: dict[str, Any]) -> tuple[Path, Path | None]:
         "quiet": False,
         "concurrent_fragment_downloads": 8,
     }
-    rng = gta_range(info)
-    if rng and not any(out_dir.glob("source.*")):
+    rng = part or gta_range(info)
+    if part and not any(out_dir.glob("source.*")):
+        print(f"    live chunk: {part[0] / 3600:.2f}h-{part[1] / 3600:.2f}h")
+        opts["download_ranges"] = download_range_func(None, [part])
+        (out_dir / "range.json").write_text(f"[{part[0]}, {part[1]}]")
+    elif rng and not any(out_dir.glob("source.*")):
         # only the GTA part of a mixed stream: much faster, much less disk
         print(f"    downloading only the GTA part: {rng[0] / 3600:.1f}h-{rng[1] / 3600:.1f}h")
         opts["download_ranges"] = download_range_func(None, [rng])

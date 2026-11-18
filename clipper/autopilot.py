@@ -74,6 +74,8 @@ def run() -> int:
         made = 0
         if _free_gb() < float(_cfg().get("min_free_gb", 40)):
             _notify(f"Disk almost full ({_free_gb():.0f} GB free): not downloading new streams.")
+        elif __import__("clipper.live", fromlist=["active"]).active():
+            print("scout: a live GTA stream is being clipped right now; other streams wait so it goes first")
         else:
             print("scout: looking for new GTA streams ...")
             for creator, url, title in discover.find_new()[: int(_cfg().get("max_streams_per_run", 2))]:

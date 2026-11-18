@@ -140,6 +140,7 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("status", help="queue and schedule overview")
     sub.add_parser("autopilot", help="find new streams, make + QA + approve clips, run the analyst (launchd every 3 h)")
     sub.add_parser("discover", help="list new GTA streams the autopilot would process (no download)")
+    sub.add_parser("live-watch", help="clip live GTA streams in chunks while they are still live (every 10 min)")
     sub.add_parser("manager", help="agent 7: review every agent, send feedback, upgrade their instructions")
     sub.add_parser("money", help="agent 8: monetization status, risks and next steps")
     sub.add_parser("growth", help="agent 6: review the three profiles and recommend changes for more awareness")
@@ -207,6 +208,9 @@ def main(argv: list[str] | None = None) -> int:
     elif a.cmd == "autopilot":
         from .autopilot import run
         return run()
+    elif a.cmd == "live-watch":
+        from .live import watch
+        return watch()
     elif a.cmd == "discover":
         from .discover import find_new
         for c, u, t in find_new():

@@ -13,8 +13,14 @@ from .download import check_permission, download
 
 
 def process(url: str, creator_id: str | None = None, reselect: bool = False) -> list[int]:
+    from .download import is_gta6, split_part
+    base, part = split_part(url)
     print("permission: checking channel against config/creators.yaml ...")
-    info, creator = check_permission(url, creator_id)
+    info, creator = check_permission(base, creator_id, allow_live=part is not None)
+    gta6 = int(is_gta6(info))
+    if part:  # one chunk of a (possibly still live) stream: its own stream row, folder and duration
+        info = {**info, "id": f"{info['id']}_p{int(part[0])}", "duration": part[1] - part[0], "chapters": None,
+                "heatmap": None, "is_live": False}
     print(f"    OK: {creator.display_name} (permission: {creator.permission.get('source')})")
 
     with db.connect() as conn:
@@ -30,14 +36,13 @@ def process(url: str, creator_id: str | None = None, reselect: bool = False) -> 
                 d = info["upload_date"]; rec = f"{d[:4]}-{d[4:6]}-{d[6:]} 00:00:00"
             else:
                 rec = None
-            from .download import is_gta6
             conn.execute("INSERT INTO streams (url, creator_id, title, duration, recorded_at, gta6) VALUES (?,?,?,?,?,?)",
-                         (url, creator.id, info.get("title"), info.get("duration"), rec, int(is_gta6(info))))
+                         (url, creator.id, info.get("title"), info.get("duration"), rec, gta6))
         stream_id = conn.execute("SELECT id FROM streams WHERE url = ?", (url,)).fetchone()["id"]
 
     try:
         print("download ...")
-        video, chat = download(url, info)
+        video, chat = download(base, info, part)
         stream_dir = Path(video).parent
         with db.connect() as conn:
             conn.execute("UPDATE streams SET video_path=?, chat_path=?, status='downloaded', error=NULL WHERE id=?",

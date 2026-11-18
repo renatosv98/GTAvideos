@@ -48,6 +48,7 @@ creators:
       description: "Directo completo: https://twitch.tv/rubius"
     vods: "https://www.twitch.tv/rubius/videos?filter=archives&sort=time"
     live: "https://www.twitch.tv/rubius"
+    live_chunks: true       # clip his GTA streams while live: first part after 45 min of GTA, then every 60 min
 
   - id: auronplay
     display_name: "Auronplay"
