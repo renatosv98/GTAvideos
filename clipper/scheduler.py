@@ -6,6 +6,7 @@ On approval each clip gets the next free slot. `clipper publish-due` (run every 
 """
 from __future__ import annotations
 
+import os
 import re
 
 import sqlite3
@@ -154,6 +155,7 @@ def tiktok_watch() -> list[str]:
             if "not_found" in str(e) or "invalid" in str(e):
                 with db.connect() as conn:
                     _record(conn, r["clip_id"], "tiktok", "failed", r["remote_id"], error=f"draft gone: {e}")
+                _ledger_add(r["clip_id"], "tiktok", r["remote_id"], void=True, why="draft expired")
                 out.append(f"#{r['clip_id']} TikTok draft expired; will be sent again")
             continue
         if st.get("status") == "PUBLISH_COMPLETE":
@@ -166,17 +168,135 @@ def tiktok_watch() -> list[str]:
         elif st.get("status") == "FAILED":
             with db.connect() as conn:
                 _record(conn, r["clip_id"], "tiktok", "failed", r["remote_id"], error=st.get("fail_reason"))
+            _ledger_add(r["clip_id"], "tiktok", r["remote_id"], void=True, why="draft failed")
             out.append(f"#{r['clip_id']} TikTok draft failed ({st.get('fail_reason')}); will be sent again")
     return out
 
 
+# ---------------------------------------------------------------------------------------------------------------
+# Safety layer: a clip may never be posted twice, and nothing is posted while the bookkeeping is broken.
+#  1. posted.jsonl ledger: written (plain file append) right after every successful post, BEFORE the database, and
+#     checked before every post. Even if the database breaks, a clip is never posted a second time.
+#  2. If saving a post fails, the run stops at once (SafetyStop) with a Mac alert instead of posting more.
+#  3. selftest() runs before every real publish run: exercises the bookkeeping on a scratch copy of the database
+#     and builds every caption. If anything fails, nothing is posted and the owner is alerted.
+# ---------------------------------------------------------------------------------------------------------------
+class SafetyStop(RuntimeError):
+    pass
+
+
+def _ledger_path() -> Path:
+    from .config import DATA
+    return DATA / "posted.jsonl"
+
+
+def _ledger() -> dict[tuple[int, str], dict]:
+    import json
+    out: dict[tuple[int, str], dict] = {}
+    try:
+        for line in _ledger_path().read_text().splitlines():
+            if line.strip():
+                e = json.loads(line)
+                out[(int(e["clip_id"]), e["platform"])] = e
+    except FileNotFoundError:
+        pass
+    return {k: v for k, v in out.items() if not v.get("void")}
+
+
+def _ledger_add(clip_id: int, platform: str, remote_id, void: bool = False, why: str = "") -> None:
+    import json
+    e = {"clip_id": int(clip_id), "platform": platform, "remote_id": remote_id,
+         "at": datetime.now(UTC).isoformat(timespec="seconds")}
+    if void:
+        e.update(void=True, why=why)
+    with open(_ledger_path(), "a") as f:
+        f.write(json.dumps(e) + "\n")
+        f.flush()
+        os.fsync(f.fileno())
+
+
+def _posted(clip_id: int, platform: str, remote_id, status: str, url=None) -> None:
+    """Bookkeeping after a successful post: ledger first, then database. Any failure stops the whole run."""
+    try:
+        _ledger_add(clip_id, platform, remote_id)
+    except Exception as e:
+        _alarm(f"Could not write the posting ledger after #{clip_id} on {platform}: {e}")
+        raise SafetyStop(str(e)) from e
+    try:
+        with db.connect() as conn:
+            _record(conn, clip_id, platform, status, remote_id, url)
+    except Exception as e:
+        _alarm(f"#{clip_id} went live on {platform} but the database could not save it ({e}). Posting stopped.")
+        raise SafetyStop(str(e)) from e
+
+
+def _alarm(msg: str) -> None:
+    import json
+    import subprocess
+    print(f"🛑 {msg}")
+    subprocess.run(["osascript", "-e", f"display notification {json.dumps(msg[:220], ensure_ascii=False)} "
+                                       f"with title \"GTAuploads: posting stopped\" sound name \"Basso\""], check=False)
+
+
+def selftest() -> list[str]:
+    """Dry checks of everything the publisher relies on. Returns a list of problems (empty = safe to post)."""
+    import shutil
+    import sqlite3
+    import tempfile
+    errors: list[str] = []
+    with tempfile.TemporaryDirectory() as d:
+        try:
+            copy = Path(d) / "t.db"
+            with db.connect() as src:
+                dst = sqlite3.connect(copy)
+                src.backup(dst)
+                dst.close()
+            conn = sqlite3.connect(copy)
+            conn.row_factory = sqlite3.Row
+            cid = conn.execute("SELECT id FROM clips ORDER BY id LIMIT 1").fetchone()[0]
+            conn.execute("DELETE FROM uploads WHERE clip_id=? AND platform='selftest'", (cid,))
+            for st in ("failed", "failed", "inbox", "scheduled", "published"):
+                _record(conn, cid, "selftest", st, "x", "u", "e" if st == "failed" else None)
+            r = conn.execute("SELECT status, attempts FROM uploads WHERE clip_id=? AND platform='selftest'",
+                             (cid,)).fetchone()
+            if (r["status"], r["attempts"]) != ("published", 2):
+                errors.append(f"upload bookkeeping wrong: {tuple(r)}")
+            conn.close()
+        except Exception as e:
+            errors.append(f"upload bookkeeping broken: {e}")
+        shutil.rmtree(d, ignore_errors=True)
+    try:
+        creators = {c.id: c for c in load_creators()}
+        with db.connect() as conn:
+            rows = conn.execute("SELECT clips.*, streams.creator_id, COALESCE(streams.gta6, 0) AS prio FROM clips "
+                                "JOIN streams ON streams.id=clips.stream_id WHERE clips.status IN ('approved',"
+                                "'published') ORDER BY clips.id DESC LIMIT 5").fetchall()
+        for c in rows:
+            cr = creators.get(c["creator_id"])
+            if not cr:
+                continue
+            for txt in (_description(c, cr), _short_caption(c, cr, "instagram"), _short_caption(c, cr, "tiktok")):
+                if cr.credit not in txt:
+                    errors.append(f"#{c['id']}: creator credit missing from a caption")
+            if not _yt_title(c) or len(_yt_title(c)) > 100:
+                errors.append(f"#{c['id']}: bad YouTube title")
+    except Exception as e:
+        errors.append(f"caption building broken: {e}")
+    try:
+        _ledger()
+    except Exception as e:
+        errors.append(f"posting ledger unreadable: {e}")
+    return errors
+
+
 def _record(conn, clip_id, platform, status, remote_id=None, url=None, error=None):
     conn.execute(
-        "INSERT INTO uploads (clip_id, platform, remote_id, url, status, error) VALUES (?,?,?,?,?,?) "
+        "INSERT INTO uploads (clip_id, platform, remote_id, url, status, error, attempts) "
+        "VALUES (?,?,?,?,?,?, CASE WHEN ?='failed' THEN 1 ELSE 0 END) "
         "ON CONFLICT(clip_id, platform) DO UPDATE SET remote_id=excluded.remote_id, url=excluded.url, "
         "status=excluded.status, error=excluded.error, "
         "attempts=CASE WHEN excluded.status='failed' THEN COALESCE(uploads.attempts,0)+1 ELSE uploads.attempts END",
-        (clip_id, platform, remote_id, url, status, error),
+        (clip_id, platform, remote_id, url, status, error, status),
     )
 
 
@@ -308,6 +428,9 @@ def publish_now(clip_id: int, platform: str) -> int:
     if not creator or not creator.permitted:
         print(f"⛔ Creator '{clip['creator_id']}' is not permitted.")
         return 2
+    if (clip_id, platform) in _ledger():
+        print(f"⛔ #{clip_id} is already on {platform} (posting ledger). Not posting twice.")
+        return 2
     print(f"#{clip_id} -> {platform} now")
     try:
         if platform == "tiktok":
@@ -325,8 +448,7 @@ def publish_now(clip_id: int, platform: str) -> int:
     except Exception as e:
         print(f"❌ {e}")
         return 1
-    with db.connect() as conn:
-        _record(conn, clip_id, platform, _tiktok_status() if platform == "tiktok" else "published", rid, url)
+    _posted(clip_id, platform, rid, _tiktok_status() if platform == "tiktok" else "published", url)
     print(f"✅ Sent ({rid}). " + ("Check your TikTok inbox/drafts." if platform == "tiktok" else url or ""))
     return 0
 
@@ -344,6 +466,11 @@ def publish_due(dry_run: bool = False) -> None:
             print("Another publish run is in progress; skipping this one.")
             return
         if not dry_run:
+            problems = selftest()
+            if problems:
+                _alarm("Self-test failed, nothing posted: " + "; ".join(problems))
+                return
+        if not dry_run:
             try:
                 for m in tiktok_watch():
                     print(m)
@@ -354,7 +481,10 @@ def publish_due(dry_run: bool = False) -> None:
                     print(m)
             except Exception as e:
                 print(f"YouTube schedule sync failed: {e}")
-        _publish_due(dry_run)
+        try:
+            _publish_due(dry_run)
+        except SafetyStop:
+            return  # already alerted; nothing more is posted until the problem is fixed
         if not dry_run:
             try:
                 from . import health
@@ -392,6 +522,7 @@ def _publish_due(dry_run: bool = False) -> None:
         done = {(r["clip_id"], r["platform"]) for r in conn.execute(
             "SELECT clip_id, platform FROM uploads WHERE status IN ('scheduled','published','inbox') "
             "OR (status='failed' AND attempts >= ?)", (MAX_ATTEMPTS,))}
+    done |= set(_ledger())  # posted per the ledger = posted, whatever the database says
 
     fl = _fast_lane()
     yt_cap = int(SETTINGS["platforms"]["youtube"].get("daily_upload_cap", 10))
@@ -423,10 +554,11 @@ def _publish_due(dry_run: bool = False) -> None:
                 from .uploaders import youtube
                 try:
                     vid = youtube.upload(Path(clip["path"]), _yt_title(clip), desc, publish_at, _yt_tags(clip))
-                    with db.connect() as conn:
-                        _record(conn, clip["id"], "youtube", "scheduled" if publish_at else "published",
-                                vid, f"https://youtube.com/shorts/{vid}")
+                    _posted(clip["id"], "youtube", vid, "scheduled" if publish_at else "published",
+                            f"https://youtube.com/shorts/{vid}")
                     yt_24h += 1
+                except SafetyStop:
+                    raise
                 except Exception as e:
                     if "uploadLimitExceeded" in str(e):
                         # new channels have a daily upload cap; the clip stays queued and is retried next run
@@ -447,9 +579,10 @@ def _publish_due(dry_run: bool = False) -> None:
                 from .uploaders import tiktok
                 try:
                     pid = tiktok.upload(_tiktok_file(clip), _short_caption(clip, creator, "tiktok"))
-                    with db.connect() as conn:
-                        _record(conn, clip["id"], "tiktok", _tiktok_status(), pid)
+                    _posted(clip["id"], "tiktok", pid, _tiktok_status())
                     recent.add("tiktok")
+                except SafetyStop:
+                    raise
                 except Exception as e:
                     if "too_many_pending" in str(e):
                         # TikTok allows only ~5 unposted drafts; wait until the owner posts some, retry next run
@@ -467,9 +600,10 @@ def _publish_due(dry_run: bool = False) -> None:
                 from .uploaders import instagram
                 try:
                     mid = instagram.upload(Path(clip["path"]), _short_caption(clip, creator, "instagram"))
-                    with db.connect() as conn:
-                        _record(conn, clip["id"], "instagram", "published", mid, instagram.permalink(mid))
+                    _posted(clip["id"], "instagram", mid, "published", instagram.permalink(mid))
                     recent.add("instagram")
+                except SafetyStop:
+                    raise
                 except Exception as e:
                     print(f"   Instagram failed: {e}")
                     with db.connect() as conn:

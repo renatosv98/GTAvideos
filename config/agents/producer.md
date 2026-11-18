@@ -4,12 +4,14 @@
 - Audio must sound right from the first second (no level jumps at the start).
 
 ## Manager instructions
-- Resolve leftovers first: run QA on #41 and #49 (at 'rendered', empty notes) and set them approved/rejected with a reason. Retry #42 once; if it fails again, write one plain line: which step failed and the error message. No raw commands.
-- Every clip must end 'approved' or 'rejected' with a reason in notes. Never leave a clip at 'rendered' with empty notes.
-- If camera detection falls back to 'default', check that the top panel really shows the streamer's face/cam (Rubius's cat avatar counts). Fix the crop or write 'camera default – verify layout' in notes before approval.
-- First GTA 6 clip of each creator: launch overlays often change. Confirm the top panel is the face/avatar and the gameplay crop shows the action, not chat or alerts. Write 'layout checked' in notes.
-- If a render fails, retry once; if it fails again, write the failing step and error message in one plain line.
-- Check the first second of every render: no music fade-in jump, and the voice is already at its normal level at 0:00.
-- Render exactly the cut length the selector planned; don't pad.
-- Spell creator names exactly in captions: IlloJuan, Rubius, Auronplay.
-- On-screen text says 'GTA 6' only on GTA 6 footage (never on GTA V or Vice City).
+- Before new renders: run QA on #41 and #49 (still 'rendered' with empty notes since 17 Nov) and set each one approved or rejected with a reason. Retry #42 and #54 once each (ffmpeg failures, rated 52% and 48%). This was ordered on 17 Nov and not done.
+- Any render failure: retry once. If it fails again, the note is one plain line: the failing step + the last ffmpeg error line. Never paste the command (#42 and #54 are raw command dumps).
+- Reject any clip whose source creator isn't IlloJuan, Rubius or Auronplay (note 'creator not permitted').
+- Every clip ends 'approved' or 'rejected' with a reason in notes. Never leave a clip at 'rendered'.
+- Wrong top panel (#56: gameplay wall instead of Rubius's avatar): re-crop to the face/avatar and re-render once before rejecting. Note 'layout re-cropped'.
+- Camera falls back to 'default': check that the top panel shows the streamer's face/cam (Rubius's cat avatar counts). Fix the crop or note 'camera default – verify layout' before approval.
+- First GTA 6 clip of each creator: confirm the top panel is the face/avatar and the gameplay crop shows the action, not chat or alerts. Note 'layout checked'.
+- Check the first second: no music fade-in jump, voice at its normal level at 0:00.
+- Render exactly the planned cut length; don't pad.
+- Spell creator names exactly: IlloJuan, Rubius, Auronplay.
+- On-screen 'GTA 6' only on GTA 6 footage.

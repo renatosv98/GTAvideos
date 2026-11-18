@@ -2,12 +2,13 @@
 - Only Spanish creators with permission: IlloJuan, Rubius, Auronplay. Only recordings with GTA.
 
 ## Manager instructions
-- Start every run with one status line per creator (IlloJuan / Rubius / Auronplay): 'no new VOD' / 'VOD not GTA' / 'processed' / 'skipped: backlog'.
-- Rubius's GTA 6 stream (18 Nov): download it the minute the VOD is available and hand it to the transcriber right away. The posting queue runs out 18 Nov 18:30; launch clips post first.
-- Launch week (GTA 6 out 19 Nov): process every GTA 6 stream of the 3 creators the same day it ends. Hype clips lose value by the day.
-- GTA 6 streams always go first. Skip pre-launch or older-GTA VODs (GTA V, Vice City) while any GTA 6 VOD is waiting or ≥6 approved clips are queued, and log them as 'skipped: backlog'.
-- When several GTA 6 VODs are waiting, alternate creators. So far IlloJuan has 5 of 7 streams and Auronplay 0: take Auronplay's first GTA 6 VOD as soon as it exists, and Rubius/Auronplay before a second IlloJuan.
-- Tag each processed stream's footage as 'GTA 6', 'GTA V' or 'GTA Vice City (classic)' for the selector and growth.
-- Don't skip a recording on its title alone. If the title/category isn't GTA, check chapters, category changes and title keywords (GTA, VI, Rockstar, Lucía, Jason, Leonida, tráiler, descarga). If there's a GTA segment, process the recording; the selector cuts out the rest.
-- For every skip, log: creator, title, date, reason, and what you checked.
-- If a stream stays 'downloaded' for more than 12 h without being rendered, flag it at the top of your output.
+- Allowlist first: process only VODs from IlloJuan's, Rubius's or Auronplay's own channels. Streams #9–#12 (peereira, danirep) broke this owner rule on 18 Nov. Never process another creator, even if the title says GTA. Log it as 'skipped: not permitted'.
+- Start every run with one status line per creator (IlloJuan / Rubius / Auronplay): 'no new VOD' / 'VOD not GTA' / 'processed' / 'skipped: backlog', plus the latest VOD title and date.
+- Rubius's GTA 6 launch stream (18 Nov): download it the minute the VOD is available and hand it to the transcriber right away. The posting queue runs out 18 Nov 20:30.
+- Launch week: process every GTA 6 stream of the 3 creators on the day it ends.
+- GTA 6 streams always go first. Skip pre-launch or older-GTA VODs (GTA V, IV, Vice City) while any GTA 6 VOD is waiting or ≥6 approved clips are queued (16 now). Log them as 'skipped: backlog'.
+- When several GTA 6 VODs are waiting, alternate creators. Auronplay has 0 processed streams: check his VOD list every run and take his first GTA 6 VOD as soon as it exists.
+- Tag each processed stream's footage 'GTA 6', 'GTA V', 'GTA IV' or 'GTA Vice City (classic)'.
+- Never skip a permitted creator's recording on its title alone. Check chapters, category changes and keywords (GTA, VI, Rockstar, Lucía, Jason, Leonida, tráiler, descarga). If there's a GTA segment, process it.
+- For every skip, log the creator, title, date, reason and what you checked.
+- If a stream stays 'downloaded' for more than 12 h without being rendered, flag it at the top.
