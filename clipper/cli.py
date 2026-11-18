@@ -140,6 +140,9 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("status", help="queue and schedule overview")
     sub.add_parser("autopilot", help="find new streams, make + QA + approve clips, run the analyst (launchd every 3 h)")
     sub.add_parser("discover", help="list new GTA streams the autopilot would process (no download)")
+    s = sub.add_parser("compile", help="agent 9: long YouTube compilation of a stream's best clips (watch hours)")
+    s.add_argument("vod")
+    s.add_argument("--no-upload", action="store_true", help="build the video only (preview)")
     sub.add_parser("live-watch", help="clip live GTA streams in chunks while they are still live (every 10 min)")
     sub.add_parser("manager", help="agent 7: review every agent, send feedback, upgrade their instructions")
     sub.add_parser("money", help="agent 8: monetization status, risks and next steps")
@@ -208,6 +211,9 @@ def main(argv: list[str] | None = None) -> int:
     elif a.cmd == "autopilot":
         from .autopilot import run
         return run()
+    elif a.cmd == "compile":
+        from .compilation import build
+        return build(a.vod, upload=not a.no_upload, label="preview" if a.no_upload else "")
     elif a.cmd == "live-watch":
         from .live import watch
         return watch()

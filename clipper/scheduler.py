@@ -634,6 +634,11 @@ def _publish_due(dry_run: bool = False) -> None:
         clips = sorted(clips, key=lambda c: -c["prio"])  # launch clips get YouTube's upload cap first
         yt_24h = conn.execute("SELECT COUNT(*) FROM uploads WHERE platform='youtube' AND remote_id IS NOT NULL "
                               "AND created_at > datetime('now','-1 day')").fetchone()[0]
+        try:
+            from .compilation import uploads_last_24h
+            yt_24h += uploads_last_24h()  # long videos use the same daily upload cap
+        except Exception:
+            pass
         done = {(r["clip_id"], r["platform"]) for r in conn.execute(
             "SELECT clip_id, platform FROM uploads WHERE status IN ('scheduled','published','inbox') "
             "OR (status='failed' AND attempts >= ?)", (MAX_ATTEMPTS,))}

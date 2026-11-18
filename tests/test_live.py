@@ -35,3 +35,18 @@ def test_live_gta6_chapter_counts_as_gta6():
     assert is_gta6(info)
     info["duration"] = 600
     assert not is_gta6(info)
+
+
+def test_compilation_plan_and_time():
+    from datetime import datetime, timezone
+    from clipper.compilation import MAX_S, _publish_time, plan
+    ms = [{"id": i, "a": i * 300.0, "b": i * 300.0 + 60, "score": 100 - i, "title": f"t{i}", "caption": "",
+           "creator_id": "rubius", "stream_title": ""} for i in range(30)]
+    segs = plan(ms)
+    assert sum(s["b"] - s["a"] for s in segs) <= MAX_S
+    assert [s["a"] for s in segs] == sorted(s["a"] for s in segs)  # stream order
+    assert segs[0]["ids"] == [0]  # best moments chosen
+    over = [{**ms[0], "id": 1, "a": 10.0, "b": 70.0}, {**ms[0], "id": 2, "a": 72.0, "b": 120.0}]
+    assert len(plan(over)) == 1  # overlapping moments merged
+    t = _publish_time(datetime(2026, 11, 19, 10, 0, tzinfo=timezone.utc))
+    assert t.hour == 18 and t.day == 19

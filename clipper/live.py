@@ -114,7 +114,10 @@ def watch() -> int:
                 if not chunk:
                     if not still:
                         rec["ended"] = True
-                        _notify(f"{creator.display_name}'s stream ended: all {rec['parts']} parts clipped.")
+                        _save(st)
+                        _notify(f"{creator.display_name}'s stream ended: all {rec['parts']} parts clipped. "
+                                "Building the long YouTube compilation.")
+                        _compile(vod)
                     else:
                         left = (rec["done_to"] or spans[0][0])
                         print(f"{creator.display_name}: live, waiting for more GTA "
@@ -141,6 +144,16 @@ def watch() -> int:
         if not busy:
             ACTIVE.unlink(missing_ok=True)
     return 0
+
+
+def _compile(vod: str) -> None:
+    """Agent 9: long 'best of' video for watch hours, right after the stream ends (GTA 6 streams only)."""
+    from . import compilation
+    try:
+        compilation.build(vod)
+    except Exception as e:
+        traceback.print_exc()
+        _notify(f"Compilation failed: {str(e)[:120]}")
 
 
 def _publish_soon() -> None:

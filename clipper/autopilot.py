@@ -81,7 +81,16 @@ def run() -> int:
             for creator, url, title in discover.find_new()[: int(_cfg().get("max_streams_per_run", 2))]:
                 print(f"\n=== {creator.display_name}: {title[:80]}\n    {url}")
                 try:
-                    made += len(process(url, creator.id))
+                    n = len(process(url, creator.id))
+                    made += n
+                    with db.connect() as conn:
+                        g6 = conn.execute("SELECT gta6 FROM streams WHERE url=?", (url,)).fetchone()
+                    if n and g6 and g6[0]:
+                        from . import compilation
+                        try:
+                            compilation.build(url)  # long video for watch hours (agent 9)
+                        except Exception:
+                            traceback.print_exc()
                 except Exception as e:
                     traceback.print_exc()
                     _notify(f"{creator.display_name} stream failed: {str(e)[:120]}")

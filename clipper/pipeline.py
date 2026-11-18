@@ -56,6 +56,14 @@ def process(url: str, creator_id: str | None = None, reselect: bool = False) -> 
         with db.connect() as conn:
             conn.execute("UPDATE streams SET status='analyzed' WHERE id=?", (stream_id,))
 
+        if part:  # never clip the same minutes of a VOD twice (overlapping live chunks / re-runs)
+            taken = clipped_ranges(base)
+            before = len(picks)
+            picks = [p for p in picks if not any(min(part[0] + p["end"], b) - max(part[0] + p["start"], a) > 5
+                                                 for a, b in taken)]
+            if len(picks) < before:
+                print(f"    dropped {before - len(picks)} moment(s) already clipped from this VOD")
+
         print(f"agent 3 · producer: {len(picks)} shorts ...")
         ids = producer.run(stream_id, Path(video), creator, picks)
         with db.connect() as conn:
@@ -65,3 +73,16 @@ def process(url: str, creator_id: str | None = None, reselect: bool = False) -> 
         with db.connect() as conn:
             conn.execute("UPDATE streams SET status='failed', error=? WHERE id=?", (str(e), stream_id))
         raise
+
+
+def clipped_ranges(vod: str) -> list[tuple[float, float]]:
+    """Absolute VOD seconds of every non-rejected clip already made from chunks of this VOD."""
+    from .download import split_part
+    out = []
+    with db.connect() as conn:
+        for r in conn.execute("SELECT c.start, c.end, s.url FROM clips c JOIN streams s ON s.id=c.stream_id "
+                              "WHERE s.url LIKE ? AND c.status NOT IN ('rejected','failed')", (vod + "#part=%",)):
+            _, part = split_part(r["url"])
+            if part:
+                out.append((part[0] + r["start"], part[0] + r["end"]))
+    return out
