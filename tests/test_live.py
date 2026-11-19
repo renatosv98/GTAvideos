@@ -100,7 +100,7 @@ def test_chunks_never_cross_into_other_games():
         assert (0 <= a and b <= 3 * H) or (8 * H <= a and b <= 10 * H)
 
 
-def test_live_watcher_takes_turns(monkeypatch):
+def test_live_watcher_takes_turns(monkeypatch, tmp_path):
     """Creators are served one chunk each per round, not one creator's whole backlog first."""
     from types import SimpleNamespace
     from clipper import live
@@ -117,5 +117,36 @@ def test_live_watcher_takes_turns(monkeypatch):
     monkeypatch.setattr(live, "load_creators", lambda: [SimpleNamespace(id=x) for x in "abc"])
     monkeypatch.setattr(live, "_watchdog", lambda: None)
     monkeypatch.setattr(live, "_load", lambda f: {"creators": []})
+    monkeypatch.setattr(live, "DATA", tmp_path)
+    monkeypatch.setattr(live, "ACTIVE", tmp_path / "a")
     live.watch()
     assert order == ["a", "b", "c", "a", "c", "a"]
+
+
+def test_live_playlist_marked_finished():
+    """A live playlist is rewritten as finished (absolute URLs, ENDLIST) so ffmpeg downloads it at full speed."""
+    from clipper.download import finished_playlist
+    live = ('#EXTM3U\n#EXT-X-VERSION:6\n#EXT-X-PLAYLIST-TYPE:EVENT\n#EXT-X-MAP:URI="init-0.mp4"\n'
+            '#EXTINF:10.000,\n0.mp4\n#EXTINF:10.000,\n1.mp4\n')
+    out = finished_playlist(live, "https://cdn.example/abc/1080p60/index-dvr.m3u8")
+    lines = out.splitlines()
+    assert lines[0] == "#EXTM3U" and "#EXT-X-PLAYLIST-TYPE:VOD" in lines and lines[-1] == "#EXT-X-ENDLIST"
+    assert "#EXT-X-PLAYLIST-TYPE:EVENT" not in lines
+    assert 'URI="https://cdn.example/abc/1080p60/init-0.mp4"' in out
+    assert "https://cdn.example/abc/1080p60/1.mp4" in lines
+    assert out.count("#EXT-X-ENDLIST") == 1
+
+
+def test_interrupted_download_never_falls_back_to_whole_stream(tmp_path, monkeypatch):
+    """A half-written file from a crash must not count as 'downloaded' (the retry would then skip the range
+    and fetch the entire stream)."""
+    from clipper import download
+    d = tmp_path / "streams" / "v1_p0"
+    d.mkdir(parents=True)
+    (d / "source.mp4.part").write_text("x")
+    (d / "source.f399.mp4.ytdl").write_text("x")
+    assert download._have_source(d) is None
+    download._clear_partial(d)
+    assert not any(d.iterdir())
+    (d / "source.mp4").write_text("x")
+    assert download._have_source(d) == d / "source.mp4"

@@ -77,6 +77,86 @@ def gta_range(info: dict[str, Any]) -> tuple[float, float] | None:
     return None if (b - a) > 0.9 * dur else (a, min(b, dur))
 
 
+VIDEO_EXT = (".mp4", ".mkv", ".webm")
+
+
+def _have_source(out_dir: Path) -> Path | None:
+    """A finished source video in out_dir (half-written .part / .ytdl / format pieces don't count)."""
+    return next((p for p in sorted(out_dir.glob("source.*"))
+                 if p.suffix in VIDEO_EXT and not re.search(r"\.f\d+\.", p.name)), None)
+
+
+def _clear_partial(out_dir: Path) -> None:
+    for p in out_dir.glob("source.*"):
+        if p.suffix not in VIDEO_EXT or re.search(r"\.f\d+\.", p.name):
+            p.unlink(missing_ok=True)
+
+
+def finished_playlist(text: str, base: str) -> str:
+    """A live recording's HLS playlist rewritten as a finished one (absolute segment URLs + ENDLIST).
+    ffmpeg reads a playlist without ENDLIST as a live broadcast, at playback speed (1x); marked finished it
+    downloads as fast as the connection allows (~8x)."""
+    from urllib.parse import urljoin
+    out = []
+    for ln in text.splitlines():
+        ln = ln.strip()
+        if not ln or ln == "#EXT-X-ENDLIST" or ln.startswith("#EXT-X-PLAYLIST-TYPE"):
+            continue
+        if ln.startswith("#EXT-X-MAP:"):
+            ln = re.sub(r'URI="([^"]+)"', lambda m: f'URI="{urljoin(base, m.group(1))}"', ln)
+        elif not ln.startswith("#"):
+            ln = urljoin(base, ln)
+        out.append(ln)
+        if ln == "#EXTM3U":
+            out.append("#EXT-X-PLAYLIST-TYPE:VOD")
+    return "\n".join(out + ["#EXT-X-ENDLIST", ""])
+
+
+def _fast_part(url: str, part: tuple[float, float], out_dir: Path) -> Path | None:
+    """Download [a, b] of a Twitch recording that is still live, at full speed. None if not possible
+    (the caller then uses the normal yt-dlp path)."""
+    import shutil
+    import subprocess
+    import urllib.request
+    h = SETTINGS["download"]["max_height"]
+    try:
+        with yt_dlp.YoutubeDL({"quiet": True, "no_warnings": True, "format": f"b[height<={h}]/b"}) as ydl:
+            m3u8 = ydl.extract_info(url, download=False).get("url") or ""
+        if ".m3u8" not in m3u8:
+            return None
+        req = urllib.request.Request(m3u8, headers={"User-Agent": "Mozilla/5.0"})
+        text = urllib.request.urlopen(req, timeout=30).read().decode()
+        pl = out_dir / "part.m3u8"
+        pl.write_text(finished_playlist(text, m3u8))
+        video = out_dir / "source.mp4"
+        a, b = part
+        r = subprocess.run([shutil.which("ffmpeg") or "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+                            "-protocol_whitelist", "file,http,https,tcp,tls,crypto",
+                            "-ss", f"{a:.2f}", "-i", str(pl), "-t", f"{b - a:.2f}", "-c", "copy",
+                            "-movflags", "+faststart", str(video)], capture_output=True, text=True, timeout=3 * 3600)
+        got = _media_seconds(video) if r.returncode == 0 and video.exists() else 0
+        if got < 0.9 * (b - a):
+            print(f"    fast download incomplete ({got:.0f}s of {b - a:.0f}s): {r.stderr.strip()[-200:]}")
+            video.unlink(missing_ok=True)
+            return None
+        return video
+    except Exception as e:
+        print(f"    fast download not possible ({str(e)[:150]}), using the normal path")
+        return None
+
+
+def _media_seconds(path: Path) -> float:
+    import json
+    import shutil
+    import subprocess
+    r = subprocess.run([shutil.which("ffprobe") or "ffprobe", "-v", "error", "-show_entries", "format=duration",
+                        "-of", "json", str(path)], capture_output=True, text=True)
+    try:
+        return float(json.loads(r.stdout)["format"]["duration"])
+    except (ValueError, KeyError):
+        return 0.0
+
+
 def download(url: str, info: dict[str, Any], part: tuple[float, float] | None = None) -> tuple[Path, Path | None]:
     vid = info["id"]
     out_dir = DATA / "streams" / vid
@@ -91,21 +171,28 @@ def download(url: str, info: dict[str, Any], part: tuple[float, float] | None = 
         "concurrent_fragment_downloads": 8,
     }
     rng = part or gta_range(info)
-    if part and not any(out_dir.glob("source.*")):
+    have = _have_source(out_dir)
+    if not have:
+        _clear_partial(out_dir)  # an interrupted download restarts cleanly, still only the part
+    if part and not have:
         print(f"    live chunk: {part[0] / 3600:.2f}h-{part[1] / 3600:.2f}h")
+        if "twitch.tv/videos/" in url and _fast_part(url, part, out_dir):
+            (out_dir / "range.json").write_text(f"[{part[0]}, {part[1]}]")
+            return out_dir / "source.mp4", None
         opts["download_ranges"] = download_range_func(None, [part])
         (out_dir / "range.json").write_text(f"[{part[0]}, {part[1]}]")
-    elif rng and not any(out_dir.glob("source.*")):
+    elif rng and not have:
         # only the GTA part of a mixed stream: much faster, much less disk
         print(f"    downloading only the GTA part: {rng[0] / 3600:.1f}h-{rng[1] / 3600:.1f}h")
         opts["download_ranges"] = download_range_func(None, [rng])
         (out_dir / "range.json").write_text(f"[{rng[0]}, {rng[1]}]")
     if SETTINGS["download"].get("chat"):
         opts.update({"writesubtitles": True, "subtitleslangs": ["live_chat"]})
-    with yt_dlp.YoutubeDL(opts) as ydl:
-        ydl.download([url])
+    if not have:
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            ydl.download([url])
 
-    video = next((p for p in out_dir.glob("source.*") if p.suffix in (".mp4", ".mkv", ".webm")), None)
+    video = _have_source(out_dir)
     if not video:
         raise RuntimeError(f"Download finished but no video found in {out_dir}")
     chat = next(out_dir.glob("*.live_chat.json"), None)
