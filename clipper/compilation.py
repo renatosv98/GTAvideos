@@ -185,6 +185,16 @@ def _publish_time(now: datetime | None = None) -> datetime | None:
     return None if t - now < timedelta(hours=1) else t
 
 
+def thumbnail(video: Path, at: float, text_file: Path, out: Path) -> None:
+    """1280x720 thumbnail: one frame of `video` at `at` seconds with huge text from `text_file`."""
+    at = max(0.0, min(at, _dur(video) - 0.5))
+    _ff("-ss", f"{at:.2f}", "-i", str(video), "-frames:v", "1",
+        "-vf", f"scale=1280:720,drawtext={_font()}textfile='{text_file}':fontsize=110:fontcolor=white:borderw=9:"
+               f"bordercolor=black:x=(w-tw)/2:y=h-th-60", str(out))
+    if not out.exists() or out.stat().st_size < 5000:
+        raise RuntimeError(f"thumbnail not written: {out}")
+
+
 def build(vod: str, upload: bool = True, label: str = "") -> int:
     """Make (and by default upload) the compilation of one stream. Returns 0 on success."""
     _ensure_table()
@@ -251,9 +261,7 @@ def build(vod: str, upload: bool = True, label: str = "") -> int:
     # thumbnail: frame from the best moment + huge text
     bi = max(range(len(segs)), key=lambda k: segs[k]["score"])
     thumb = work / "thumb.jpg"
-    _ff("-ss", f"{starts[bi] + 8.5:.2f}",  # after the on-screen caption (first 7 s) is gone "-i", str(final), "-frames:v", "1",
-        "-vf", f"scale=1280:720,drawtext={_font()}textfile='{t1}':fontsize=110:fontcolor=white:borderw=9:"
-               f"bordercolor=black:x=(w-tw)/2:y=h-th-60", str(thumb))
+    thumbnail(final, starts[bi] + 8.5, t1, thumb)  # 8.5 s in: the on-screen caption (first 7 s) is gone
 
     desc = "\n".join([
         meta["description"].strip(), "",

@@ -50,3 +50,15 @@ def test_compilation_plan_and_time():
     assert len(plan(over)) == 1  # overlapping moments merged
     t = _publish_time(datetime(2026, 11, 19, 10, 0, tzinfo=timezone.utc))
     assert t.hour == 18 and t.day == 19
+
+
+def test_compilation_thumbnail_on_real_video(tmp_path):
+    """The thumbnail step runs real ffmpeg on a real (tiny) video, incl. a seek past the end."""
+    from clipper import compilation
+    v = tmp_path / "v.mp4"
+    compilation._ff("-f", "lavfi", "-i", "testsrc=size=1920x1080:rate=30:duration=4", "-pix_fmt", "yuv420p", str(v))
+    txt = tmp_path / "t.txt"
+    txt.write_text("DÍA 1 EN GTA 6")
+    out = tmp_path / "thumb.jpg"
+    compilation.thumbnail(v, 8.5, txt, out)
+    assert out.stat().st_size > 5000
