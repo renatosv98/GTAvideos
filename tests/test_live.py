@@ -75,3 +75,47 @@ def test_compilation_upload_is_locked(monkeypatch, tmp_path):
         fcntl.flock(held, fcntl.LOCK_EX)
         assert compilation.upload_ready() == ["compilation upload already running elsewhere"]
     assert compilation.upload_ready() == ["uploaded"]
+
+
+H = 3600.0
+MARATHON = {"chapters": [  # Peereira-style 24h stream
+    {"start_time": 0, "end_time": 3 * H, "title": "Grand Theft Auto VI"},
+    {"start_time": 3 * H, "end_time": 5 * H, "title": "Just Chatting"},
+    {"start_time": 5 * H, "end_time": 8 * H, "title": "Grand Theft Auto V"},
+    {"start_time": 8 * H, "end_time": 8 * H, "title": "Grand Theft Auto VI"}]}  # in progress
+
+
+def test_spans_are_gta6_only():
+    assert gta_spans(MARATHON, 10 * H) == [(0.0, 3 * H), (8 * H, 10 * H)]
+
+
+def test_chunks_never_cross_into_other_games():
+    edge = 10 * H - 120
+    got, done, n = [], 0.0, 0
+    while (c := next_chunk(gta_spans(MARATHON, 10 * H), done, edge, n, True, CFG)):
+        got.append(c)
+        done, n = c[1], n + 1
+    assert got == [(0.0, 1.5 * H), (1.5 * H, 3 * H), (8 * H, 9.5 * H)]
+    for a, b in got:  # every chunk sits inside a GTA VI chapter
+        assert (0 <= a and b <= 3 * H) or (8 * H <= a and b <= 10 * H)
+
+
+def test_live_watcher_takes_turns(monkeypatch):
+    """Creators are served one chunk each per round, not one creator's whole backlog first."""
+    from types import SimpleNamespace
+    from clipper import live
+    order = []
+    left = {"a": 3, "b": 1, "c": 2}
+
+    def one(creator, raw, st):
+        if left[creator.id]:
+            left[creator.id] -= 1
+            order.append(creator.id)
+            return True
+        return False
+    monkeypatch.setattr(live, "_one_chunk", one)
+    monkeypatch.setattr(live, "load_creators", lambda: [SimpleNamespace(id=x) for x in "abc"])
+    monkeypatch.setattr(live, "_watchdog", lambda: None)
+    monkeypatch.setattr(live, "_load", lambda f: {"creators": []})
+    live.watch()
+    assert order == ["a", "b", "c", "a", "c", "a"]

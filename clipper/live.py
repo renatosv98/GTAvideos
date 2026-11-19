@@ -20,7 +20,7 @@ import traceback
 
 from . import discover
 from .config import DATA, _load, load_creators
-from .download import GTA_WORDS, part_url, probe
+from .download import GTA6_RE, part_url, probe
 
 STATE = DATA / "live_parts.json"
 ACTIVE = DATA / "live_active"
@@ -44,30 +44,38 @@ def _notify(msg: str) -> None:
 
 
 def gta_spans(info: dict, now_dur: float) -> list[tuple[float, float]]:
-    """GTA chapters as (start, end); the chapter in progress (end == start on a live VOD) runs to now."""
+    """GTA 6 chapters as (start, end); the chapter in progress (end == start on a live VOD) runs to now.
+    GTA 6 only: marathon streams switch between GTA VI, GTA V and Just Chatting, and those must never be
+    clipped as GTA 6."""
     out = []
     for c in info.get("chapters") or []:
-        if any(w in (c.get("title") or "").lower() for w in GTA_WORDS):
+        if GTA6_RE.search(c.get("title") or ""):
             end = c["end_time"] if c["end_time"] > c["start_time"] else now_dur
             out.append((float(c["start_time"]), float(end)))
-    return out
+    return sorted(out)
 
 
 def next_chunk(spans, done_to: float, edge: float, n_done: int, live: bool, cfg: dict) -> tuple[float, float] | None:
-    """Next part to process: from where we stopped to the recorded edge, over the GTA chapters.
-    While live, wait for a full chunk; once ended, take any remainder of 5+ min."""
-    if not spans:
-        return None
-    a = max(done_to, min(s for s, _ in spans))
-    b = min(edge, max(e for _, e in spans))
-    gta = sum(max(0.0, min(e, b) - max(s, a)) for s, e in spans)
-    need = 60 * float(cfg.get("first_chunk_min" if n_done == 0 else "chunk_min", 45 if n_done == 0 else 60))
-    if live and gta < need:
-        return None
-    if not live and gta < 300:
-        return None
-    b = min(b, a + 60 * float(cfg.get("max_chunk_min", 90)))  # fell behind: keep chunks quick to turn around
-    return (a, b)
+    """Next part to process, always inside ONE GTA 6 chapter (never across other games / Just Chatting).
+    The chapter still being recorded (touching the live edge) waits for a full chunk; a finished chapter is taken
+    whole (in max_chunk_min pieces); leftovers under 2 min are skipped. Once the stream has ended, any remainder
+    of 5+ min is taken."""
+    cap = 60 * float(cfg.get("max_chunk_min", 90))
+    for s, e in sorted(spans):
+        a, b = max(done_to, s), min(e, edge)
+        if b - a < 120:
+            if e >= edge:  # nothing more recorded yet
+                return None
+            continue  # tiny or already-done chapter: skip it
+        open_ = live and e >= edge  # this chapter is still being recorded
+        if open_:
+            need = 60 * float(cfg.get("first_chunk_min" if n_done == 0 else "chunk_min", 45 if n_done == 0 else 60))
+            if b - a < need:
+                return None
+        elif not live and e >= edge and b - a < 300:
+            return None
+        return (a, min(b, a + cap))  # fell behind: keep chunks quick to turn around
+    return None
 
 
 def _watchdog() -> None:
@@ -93,72 +101,86 @@ def watch() -> int:
         except BlockingIOError:
             print("live watcher already running")
             return 0
-        from .pipeline import process
         raw = {c["id"]: c for c in _load("creators.yaml").get("creators", [])}
         st = _state()
         busy = False
-        for creator in load_creators():
-            cfg = raw.get(creator.id, {})
-            if not (creator.permitted and cfg.get("live_chunks") and cfg.get("vods") and cfg.get("live")):
-                continue
-            live = discover._is_live(cfg["live"])
-            try:
-                newest = discover._recent(cfg["vods"])[:1]
-            except Exception as e:
-                print(f"{creator.display_name}: could not list recordings: {e}")
-                continue
-            if not newest:
-                continue
-            vod = discover._clean(newest[0].get("url") or "")
-            rec = st.get(vod)
-            if not live and (not rec or rec.get("ended")):
-                continue  # not live, and not a stream we were clipping live
-            while True:
-                info = probe(vod)
-                still = bool(info.get("is_live"))
-                dur = float(info.get("duration") or 0)
-                rec = st.setdefault(vod, {"creator": creator.id, "done_to": 0, "parts": 0, "ended": False})
-                spans = gta_spans(info, dur)
-                if not spans:
-                    print(f"{creator.display_name}: live, no GTA chapter yet ({dur / 60:.0f} min recorded)")
-                    break
-                discover._mark_seen({vod})  # the live watcher owns this VOD: the normal scout leaves it alone
-                busy = True
-                ACTIVE.write_text(str(time.time()))
-                chunk = next_chunk(spans, rec["done_to"], dur - SAFETY if still else dur, rec["parts"], still, cfg)
-                if not chunk:
-                    if not still:
-                        rec["ended"] = True
-                        _save(st)
-                        _notify(f"{creator.display_name}'s stream ended: all {rec['parts']} parts clipped. "
-                                "Building the long YouTube compilation.")
-                        _compile(vod)
-                    else:
-                        left = (rec["done_to"] or spans[0][0])
-                        print(f"{creator.display_name}: live, waiting for more GTA "
-                              f"(done to {left / 60:.0f} min, recorded {dur / 60:.0f} min)")
-                    _save(st)
-                    break
-                url = part_url(vod, *chunk)
-                print(f"\n=== {creator.display_name} LIVE part {rec['parts'] + 1}: "
-                      f"{chunk[0] / 60:.0f}-{chunk[1] / 60:.0f} min\n    {url}")
-                try:
-                    ids = process(url, creator.id)
-                    _notify(f"{creator.display_name} live part {rec['parts'] + 1}: {len(ids)} clips made, "
-                            "GTA 6 ones go first in the queue.")
-                except Exception as e:
-                    traceback.print_exc()
-                    _notify(f"{creator.display_name} live part failed: {str(e)[:120]}")
-                    rec["fail"] = rec.get("fail", 0) + 1
-                    if rec["fail"] < 3:
-                        _save(st)
-                        break  # retry this chunk on the next run
-                rec.update(done_to=chunk[1], parts=rec["parts"] + 1, fail=0)
-                _save(st)
-                _publish_soon()
+        progress = True
+        while progress:  # take turns: one chunk per live creator per round, so nobody waits behind a long catch-up
+            progress = False
+            for creator in load_creators():
+                if _one_chunk(creator, raw, st):
+                    progress = True
+                busy = busy or bool(_BUSY)
         if not busy:
             ACTIVE.unlink(missing_ok=True)
     return 0
+
+
+_BUSY: list = []
+
+
+def _one_chunk(creator, raw: dict, st: dict) -> bool:
+    """Process at most one new chunk of this creator's live GTA stream. True if a chunk was processed."""
+    from .pipeline import process
+    cfg = raw.get(creator.id, {})
+    if not (creator.permitted and cfg.get("live_chunks") and cfg.get("vods") and cfg.get("live")):
+        return False
+    live = discover._is_live(cfg["live"])
+    try:
+        newest = discover._recent(cfg["vods"])[:1]
+    except Exception as e:
+        print(f"{creator.display_name}: could not list recordings: {e}")
+        return False
+    if not newest:
+        return False
+    vod = discover._clean(newest[0].get("url") or "")
+    rec = st.get(vod)
+    if not live and (not rec or rec.get("ended")):
+        return False  # not live, and not a stream we were clipping live
+    info = probe(vod)
+    still = bool(info.get("is_live"))
+    dur = float(info.get("duration") or 0)
+    rec = st.setdefault(vod, {"creator": creator.id, "done_to": 0, "parts": 0, "ended": False})
+    spans = gta_spans(info, dur)
+    if not spans:
+        print(f"{creator.display_name}: live, no GTA chapter yet ({dur / 60:.0f} min recorded)")
+        return False
+    discover._mark_seen({vod})  # the live watcher owns this VOD: the normal scout leaves it alone
+    _BUSY.append(1)
+    ACTIVE.write_text(str(time.time()))
+    chunk = next_chunk(spans, rec["done_to"], dur - SAFETY if still else dur, rec["parts"], still, cfg)
+    if not chunk:
+        if not still:
+            rec["ended"] = True
+            _save(st)
+            _notify(f"{creator.display_name}'s stream ended: all {rec['parts']} parts clipped. "
+                    "Building the long YouTube compilation.")
+            _compile(vod)
+        else:
+            left = (rec["done_to"] or spans[0][0])
+            print(f"{creator.display_name}: live, waiting for more GTA "
+                  f"(done to {left / 60:.0f} min, recorded {dur / 60:.0f} min)")
+        _save(st)
+        return False
+    url = part_url(vod, *chunk)
+    print(f"\n=== {creator.display_name} LIVE part {rec['parts'] + 1}: "
+          f"{chunk[0] / 60:.0f}-{chunk[1] / 60:.0f} min\n    {url}")
+    try:
+        ids = process(url, creator.id)
+        _notify(f"{creator.display_name} live part {rec['parts'] + 1}: {len(ids)} clips made, "
+                "GTA 6 ones go first in the queue.")
+    except Exception as e:
+        traceback.print_exc()
+        _notify(f"{creator.display_name} live part failed: {str(e)[:120]}")
+        rec["fail"] = rec.get("fail", 0) + 1
+        if rec["fail"] < 3:
+            _save(st)
+            return False  # retry this chunk on the next run
+    rec.update(done_to=chunk[1], parts=rec["parts"] + 1, fail=0)
+    _save(st)
+    _publish_soon()
+    return True
+    return False
 
 
 def _compile(vod: str) -> None:

@@ -29,6 +29,7 @@ creators:
       description: "Directo completo: https://twitch.tv/illojuan"
     vods: "https://www.twitch.tv/illojuan/videos?filter=archives&sort=time"
     live: "https://www.twitch.tv/illojuan"
+    live_chunks: true
 
   - id: rubius
     display_name: "Rubius"
@@ -103,3 +104,4 @@ creators:
       description: "Directo completo: https://twitch.tv/peereira7"
     vods: "https://www.twitch.tv/peereira7/videos?filter=archives&sort=time"
     live: "https://www.twitch.tv/peereira7"
+    live_chunks: true
