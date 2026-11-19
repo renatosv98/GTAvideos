@@ -590,6 +590,15 @@ def publish_due(dry_run: bool = False) -> None:
                     print(m)
             except Exception as e:
                 print(f"YouTube schedule sync failed: {e}")
+        from .config import DATA as _D
+        (_D / "publish_last.txt").write_text(datetime.now(UTC).isoformat())  # watchdog heartbeat
+        if not dry_run and SETTINGS["platforms"]["youtube"].get("enabled"):
+            try:
+                from .compilation import upload_ready
+                for m in upload_ready():
+                    print(m)
+            except Exception as e:
+                print(f"compilation upload failed: {e}")
         try:
             _publish_due(dry_run)
         except SafetyStop:

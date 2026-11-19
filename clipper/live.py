@@ -70,8 +70,23 @@ def next_chunk(spans, done_to: float, edge: float, n_done: int, live: bool, cfg:
     return (a, b)
 
 
+def _watchdog() -> None:
+    """The publisher must run every 15 min; if its heartbeat is older than 25 min, start it (launchd timers can
+    silently stop firing, as the live job's did on 18 Nov)."""
+    from datetime import datetime, timezone
+    try:
+        last = datetime.fromisoformat((DATA / "publish_last.txt").read_text().strip())
+        stale = (datetime.now(timezone.utc) - last).total_seconds() > 25 * 60
+    except (OSError, ValueError):
+        stale = True
+    if stale:
+        print("watchdog: publisher hasn't run for 25+ min, starting it")
+        _publish_soon()
+
+
 def watch() -> int:
     DATA.mkdir(parents=True, exist_ok=True)
+    _watchdog()
     with open(DATA / "live.lock", "w") as lock:
         try:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)

@@ -272,30 +272,60 @@ def build(vod: str, upload: bool = True, label: str = "") -> int:
                      (vod, title, json.dumps([i for s in segs for i in s["ids"]]), str(final)))
     print(f"    built {final} ({_dur(final) / 60:.1f} min)\n    title: {title}")
     (work / "description.txt").write_text(desc)
-    if not upload:
-        return 0
-
-    from .uploaders import youtube
-    when = _publish_time()
     tags = list(dict.fromkeys(["GTA 6", "GTA6", "GTA VI", creator.display_name, f"{creator.display_name} GTA 6",
                                "GTA 6 español", *meta["tags"]]))
-    try:
-        vid = youtube.upload(final, title, desc, when, tags)
-    except Exception as e:
-        with db.connect() as conn:
-            conn.execute("UPDATE compilations SET status='failed', error=? WHERE source=?", (str(e)[:500], vod))
-        raise
-    try:
-        from googleapiclient.http import MediaFileUpload
-        youtube._api().thumbnails().set(videoId=vid, media_body=MediaFileUpload(str(thumb))).execute()
-    except Exception as e:
-        print(f"    thumbnail not set (needs a phone-verified channel): {str(e)[:120]}")
+    (work / "tags.json").write_text(json.dumps(tags, ensure_ascii=False))
+    if not upload:
+        return 0
     with db.connect() as conn:
-        conn.execute("UPDATE compilations SET youtube_id=?, publish_at=?, status=? WHERE source=?",
-                     (vid, when.isoformat() if when else None, "scheduled" if when else "uploaded", vod))
-    print(f"    ✅ uploaded https://youtu.be/{vid} " + (f"(public {when:%a %d %b %H:%M} UTC)" if when else ""))
-    final.unlink(missing_ok=True)  # keep the disk free; YouTube has it
+        conn.execute("UPDATE compilations SET status='ready' WHERE source=?", (vod,))
+    upload_ready()
     return 0
+
+
+def upload_ready() -> list[str]:
+    """Upload every built compilation still waiting (e.g. YouTube's daily cap was full). Called by the publisher
+    every 15 min, before Shorts: a long video is worth more watch hours than any single Short."""
+    _ensure_table()
+    out = []
+    with db.connect() as conn:
+        rows = conn.execute("SELECT * FROM compilations WHERE status IN ('ready','waiting_cap') "
+                            "AND youtube_id IS NULL").fetchall()
+    for r in rows:
+        final = Path(r["path"])
+        work = final.parent
+        if not final.exists():
+            with db.connect() as conn:
+                conn.execute("UPDATE compilations SET status='failed', error='video file missing' WHERE id=?",
+                             (r["id"],))
+            continue
+        from .uploaders import youtube
+        when = _publish_time()
+        try:
+            vid = youtube.upload(final, r["title"], (work / "description.txt").read_text(), when,
+                                 json.loads((work / "tags.json").read_text()))
+        except Exception as e:
+            cap = "uploadLimitExceeded" in str(e)
+            with db.connect() as conn:
+                conn.execute("UPDATE compilations SET status=?, error=? WHERE id=?",
+                             ("waiting_cap" if cap else "ready", str(e)[:500], r["id"]))
+            out.append(f"compilation #{r['id']}: " + ("YouTube daily limit, will retry" if cap else f"failed: {e}"))
+            if cap:
+                break
+            continue
+        try:
+            from googleapiclient.http import MediaFileUpload
+            youtube._api().thumbnails().set(videoId=vid, media_body=MediaFileUpload(str(work / "thumb.jpg"))).execute()
+        except Exception as e:
+            print(f"    thumbnail not set (needs a phone-verified channel): {str(e)[:120]}")
+        with db.connect() as conn:
+            conn.execute("UPDATE compilations SET youtube_id=?, publish_at=?, status=?, error=NULL, "
+                         "created_at=datetime('now') WHERE id=?",
+                         (vid, when.isoformat() if when else None, "scheduled" if when else "uploaded", r["id"]))
+        final.unlink(missing_ok=True)  # keep the disk free; YouTube has it
+        out.append(f"compilation #{r['id']} uploaded: https://youtu.be/{vid}"
+                   + (f" (public {when:%a %d %b %H:%M} UTC)" if when else ""))
+    return out
 
 
 def uploads_last_24h() -> int:
