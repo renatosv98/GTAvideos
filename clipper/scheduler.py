@@ -90,6 +90,12 @@ def reprioritize(conn: sqlite3.Connection) -> None:
         conn.execute("UPDATE clips SET slot_at=? WHERE id=?", (slot, r["id"]))
 
 
+
+def post_order(clip) -> tuple:
+    """Who goes out first when several clips are due (e.g. a backlog while YouTube's limit was full):
+    GTA 6 first, then highest viral chance (selector's score), then oldest slot."""
+    return (-(clip["prio"] or 0), -(clip["score"] or 0), clip["slot_at"] or "")
+
 MAX_ATTEMPTS = 5  # after this many failures the publisher stops; the manager decides (retry or escalate)
 
 
@@ -680,7 +686,7 @@ def _publish_due(dry_run: bool = False) -> None:
             "SELECT clips.*, streams.creator_id, COALESCE(streams.gta6, 0) AS prio FROM clips "
             "JOIN streams ON streams.id = clips.stream_id "
             "WHERE clips.status IN ('approved','published') AND slot_at IS NOT NULL ORDER BY slot_at").fetchall()
-        clips = sorted(clips, key=lambda c: -c["prio"])  # launch clips get YouTube's upload cap first
+        clips = sorted(clips, key=post_order)
         yt_24h = conn.execute("SELECT COUNT(*) FROM uploads WHERE platform='youtube' AND remote_id IS NOT NULL "
                               "AND created_at > datetime('now','-1 day')").fetchone()[0]
         try:
