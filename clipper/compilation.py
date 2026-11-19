@@ -311,8 +311,12 @@ def upload_ready() -> list[str]:
                              ("waiting_cap" if cap else "ready", str(e)[:500], r["id"]))
             out.append(f"compilation #{r['id']}: " + ("YouTube daily limit, will retry" if cap else f"failed: {e}"))
             if cap:
+                from .scheduler import _yt_cap_hit
+                _yt_cap_hit()
                 break
             continue
+        from .scheduler import _yt_cap_clear
+        _yt_cap_clear()
         try:
             from googleapiclient.http import MediaFileUpload
             youtube._api().thumbnails().set(videoId=vid, media_body=MediaFileUpload(str(work / "thumb.jpg"))).execute()

@@ -140,3 +140,21 @@ def test_gta6_hold_blocks_older_clips(scratch, monkeypatch):
     for cid, p in posted:
         if cid not in g6:
             assert not any(w[1] == p and w not in posted and (w[0], p) not in scheduler._ledger() for w in waiting), (cid, p)
+
+
+def test_youtube_backoff_after_upload_limit(tmp_path, monkeypatch):
+    """After uploadLimitExceeded, YouTube is not retried for an hour; one alert per episode; success clears it."""
+    import json
+    from datetime import datetime, timedelta
+    alerts = []
+    monkeypatch.setattr(scheduler, "_yt_cap_file", lambda: tmp_path / "yt.json")
+    monkeypatch.setattr(scheduler, "_alarm_ok", alerts.append)
+    assert not scheduler._yt_capped()
+    scheduler._yt_cap_hit()
+    scheduler._yt_cap_hit()
+    assert scheduler._yt_capped() and len(alerts) == 1
+    old = (datetime.now(scheduler.UTC) - timedelta(minutes=61)).isoformat()
+    (tmp_path / "yt.json").write_text(json.dumps({"since": old, "last": old}))
+    assert not scheduler._yt_capped()
+    scheduler._yt_cap_clear()
+    assert not (tmp_path / "yt.json").exists() and len(alerts) == 2

@@ -338,6 +338,46 @@ def _alarm_ok(msg: str) -> None:
                                        f"with title \"GTAuploads\" sound name \"Glass\""], check=False)
 
 
+YT_BACKOFF_MIN = 60  # after YouTube refuses (uploadLimitExceeded), wait this long before trying again
+
+
+def _yt_cap_file():
+    from .config import DATA
+    return DATA / "youtube_capped.json"
+
+
+def _yt_capped() -> bool:
+    """True while we're backing off after YouTube's channel upload limit (retrying every 15 min wastes API
+    quota and may extend the block)."""
+    import json
+    try:
+        last = datetime.fromisoformat(json.loads(_yt_cap_file().read_text())["last"])
+    except (OSError, ValueError, KeyError):
+        return False
+    return datetime.now(UTC) - last < timedelta(minutes=YT_BACKOFF_MIN)
+
+
+def _yt_cap_hit() -> None:
+    import json
+    f = _yt_cap_file()
+    now = datetime.now(UTC).isoformat()
+    try:
+        st = json.loads(f.read_text())
+    except (OSError, ValueError):
+        st = {"since": now}
+        _alarm_ok("YouTube refused uploads (channel limit for unverified channels). Retrying hourly; "
+                  "verify the channel to raise the limit.")
+    st["last"] = now
+    f.write_text(json.dumps(st))
+
+
+def _yt_cap_clear() -> None:
+    f = _yt_cap_file()
+    if f.exists():
+        f.unlink()
+        _alarm_ok("YouTube uploads are working again.")
+
+
 def _ig_gap_ok() -> bool:
     """At most one Reel every `min_gap_minutes` (bursts of posts get the app/account restricted)."""
     gap = int(SETTINGS["platforms"].get("instagram", {}).get("min_gap_minutes", 90))
@@ -592,7 +632,7 @@ def publish_due(dry_run: bool = False) -> None:
                 print(f"YouTube schedule sync failed: {e}")
         from .config import DATA as _D
         (_D / "publish_last.txt").write_text(datetime.now(UTC).isoformat())  # watchdog heartbeat
-        if not dry_run and SETTINGS["platforms"]["youtube"].get("enabled"):
+        if not dry_run and SETTINGS["platforms"]["youtube"].get("enabled") and not _yt_capped():
             try:
                 from .compilation import upload_ready
                 for m in upload_ready():
@@ -661,7 +701,10 @@ def _publish_due(dry_run: bool = False) -> None:
     yt_cap = int(SETTINGS["platforms"]["youtube"].get("daily_upload_cap", 10))
     yt_reserve = int(fl.get("youtube_reserve_for_priority", 0))
 
-    tiktok_full = yt_full = ig_stop = False
+    tiktok_full = ig_stop = False
+    yt_full = _yt_capped()
+    if yt_full:
+        print("YouTube: backing off after its upload limit, next try within the hour")
     with db.connect() as conn:  # catch-up posts (clip's slot long past): at most one per platform every 3 h
         recent = {r["platform"] for r in conn.execute(
             "SELECT DISTINCT platform FROM uploads WHERE created_at > datetime('now','-3 hours') "
@@ -691,13 +734,15 @@ def _publish_due(dry_run: bool = False) -> None:
                     _posted(clip["id"], "youtube", vid, "scheduled" if publish_at else "published",
                             f"https://youtube.com/shorts/{vid}")
                     yt_24h += 1
+                    _yt_cap_clear()
                 except SafetyStop:
                     raise
                 except Exception as e:
                     if "uploadLimitExceeded" in str(e):
                         # new channels have a daily upload cap; the clip stays queued and is retried next run
-                        print("   YouTube daily upload limit reached; will retry later")
+                        print("   YouTube daily upload limit reached; will retry within the hour")
                         yt_full = True
+                        _yt_cap_hit()
                     else:
                         print(f"   YouTube failed: {e}")
                         with db.connect() as conn:
