@@ -294,7 +294,18 @@ def build(vod: str, upload: bool = True, label: str = "") -> int:
 def upload_ready() -> list[str]:
     """Upload every built compilation still waiting (e.g. YouTube's daily cap was full). Called by the publisher
     every 15 min, before Shorts: a long video is worth more watch hours than any single Short."""
+    import fcntl
     _ensure_table()
+    DATA.mkdir(parents=True, exist_ok=True)
+    with open(DATA / "compilation_upload.lock", "w") as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return ["compilation upload already running elsewhere"]  # never upload the same video twice
+        return _upload_ready_locked()
+
+
+def _upload_ready_locked() -> list[str]:
     out = []
     with db.connect() as conn:
         rows = conn.execute("SELECT * FROM compilations WHERE status IN ('ready','waiting_cap') "

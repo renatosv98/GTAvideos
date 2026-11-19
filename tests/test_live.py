@@ -62,3 +62,16 @@ def test_compilation_thumbnail_on_real_video(tmp_path):
     out = tmp_path / "thumb.jpg"
     compilation.thumbnail(v, 8.5, txt, out)
     assert out.stat().st_size > 5000
+
+
+def test_compilation_upload_is_locked(monkeypatch, tmp_path):
+    """Two callers (build + publisher) can't upload the same compilation at once."""
+    import fcntl
+    from clipper import compilation
+    monkeypatch.setattr(compilation, "DATA", tmp_path)
+    monkeypatch.setattr(compilation, "_ensure_table", lambda: None)
+    monkeypatch.setattr(compilation, "_upload_ready_locked", lambda: ["uploaded"])
+    with open(tmp_path / "compilation_upload.lock", "w") as held:
+        fcntl.flock(held, fcntl.LOCK_EX)
+        assert compilation.upload_ready() == ["compilation upload already running elsewhere"]
+    assert compilation.upload_ready() == ["uploaded"]
