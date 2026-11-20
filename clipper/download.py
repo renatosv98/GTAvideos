@@ -81,9 +81,16 @@ VIDEO_EXT = (".mp4", ".mkv", ".webm")
 
 
 def _have_source(out_dir: Path) -> Path | None:
-    """A finished source video in out_dir (half-written .part / .ytdl / format pieces don't count)."""
-    return next((p for p in sorted(out_dir.glob("source.*"))
-                 if p.suffix in VIDEO_EXT and not re.search(r"\.f\d+\.", p.name)), None)
+    """A finished, playable source video in out_dir. Half-written .part / .ytdl / format pieces don't count, and
+    neither does a file cut off by a network drop (no readable duration): it is deleted so the part is downloaded
+    again instead of failing every retry."""
+    for p in sorted(out_dir.glob("source.*")):
+        if p.suffix in VIDEO_EXT and not re.search(r"\.f\d+\.", p.name):
+            if p.stat().st_size > 1_000_000 and _media_seconds(p) > 10:
+                return p
+            print(f"    {p.name} is incomplete (download was cut off): downloading again")
+            p.unlink(missing_ok=True)
+    return None
 
 
 def _clear_partial(out_dir: Path) -> None:
@@ -142,6 +149,7 @@ def _fast_part(url: str, part: tuple[float, float], out_dir: Path) -> Path | Non
         return video
     except Exception as e:
         print(f"    fast download not possible ({str(e)[:150]}), using the normal path")
+        (out_dir / "source.mp4").unlink(missing_ok=True)  # never leave a cut-off file behind
         return None
 
 

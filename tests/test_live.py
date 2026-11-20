@@ -148,5 +148,15 @@ def test_interrupted_download_never_falls_back_to_whole_stream(tmp_path, monkeyp
     assert download._have_source(d) is None
     download._clear_partial(d)
     assert not any(d.iterdir())
-    (d / "source.mp4").write_text("x")
-    assert download._have_source(d) == d / "source.mp4"
+
+
+def test_cut_off_download_is_not_treated_as_done(tmp_path):
+    """A source.mp4 cut off by a network drop (Peereira part 20, 20 Nov) is deleted and re-downloaded,
+    never handed to the transcriber."""
+    from clipper import compilation, download
+    (tmp_path / "source.mp4").write_bytes(b"\x00" * 48)
+    assert download._have_source(tmp_path) is None and not (tmp_path / "source.mp4").exists()
+    good = tmp_path / "source.mp4"
+    compilation._ff("-f", "lavfi", "-i", "testsrc=size=1280x720:rate=30:duration=15", "-pix_fmt", "yuv420p",
+                    "-b:v", "2M", str(good))
+    assert download._have_source(tmp_path) == good

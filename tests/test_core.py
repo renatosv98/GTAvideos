@@ -68,8 +68,10 @@ def test_reprioritize_puts_most_viral_first(tmp_path, monkeypatch):
     from clipper import db, scheduler
     conn = sqlite3.connect(tmp_path / "t.db"); conn.row_factory = sqlite3.Row; conn.executescript(db.SCHEMA)
     conn.execute("INSERT INTO streams (id, url, creator_id) VALUES (1, 'u', 'x')")
-    for cid, slot, score in [(1, "2026-11-20T00:00:00+00:00", 30), (2, "2026-11-20T04:00:00+00:00", 80),
-                             (3, "2026-11-20T08:00:00+00:00", 55)]:
+    from datetime import datetime, timedelta, timezone
+    base = datetime.now(timezone.utc) + timedelta(days=1)  # always in the future (fixed dates went stale)
+    for cid, slot, score in [(1, (base).isoformat(), 30), (2, (base + timedelta(hours=4)).isoformat(), 80),
+                             (3, (base + timedelta(hours=8)).isoformat(), 55)]:
         conn.execute("INSERT INTO clips (id, stream_id, start, end, score, status, slot_at) VALUES (?,1,0,1,?,'approved',?)",
                      (cid, score, slot))
     scheduler.reprioritize(conn)

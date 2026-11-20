@@ -173,14 +173,16 @@ def _one_chunk(creator, raw: dict, st: dict) -> bool:
         traceback.print_exc()
         _notify(f"{creator.display_name} live part failed: {str(e)[:120]}")
         rec["fail"] = rec.get("fail", 0) + 1
-        if rec["fail"] < 3:
+        if rec["fail"] < 6:  # ~30 min of retries: rides out internet drops
             _save(st)
             return False  # retry this chunk on the next run
+        rec.setdefault("skipped", []).append(list(chunk))  # recorded so it can be re-clipped later
+        _notify(f"{creator.display_name}: gave up on {chunk[0] / 3600:.1f}-{chunk[1] / 3600:.1f}h after 6 tries. "
+                "Recorded in live_parts.json to re-clip.")
     rec.update(done_to=chunk[1], parts=rec["parts"] + 1, fail=0)
     _save(st)
     _publish_soon()
     return True
-    return False
 
 
 def _compile(vod: str) -> None:
