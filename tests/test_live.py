@@ -160,3 +160,16 @@ def test_cut_off_download_is_not_treated_as_done(tmp_path):
     compilation._ff("-f", "lavfi", "-i", "testsrc=size=1280x720:rate=30:duration=15", "-pix_fmt", "yuv420p",
                     "-b:v", "2M", str(good))
     assert download._have_source(tmp_path) == good
+
+
+def test_playlist_slice_takes_only_needed_segments():
+    from clipper.download import slice_playlist
+    pl = "#EXTM3U\n#EXT-X-TARGETDURATION:10\n#EXT-X-MEDIA-SEQUENCE:0\n" + "".join(
+        f"#EXTINF:10.000,\nhttps://cdn/x/{i}.ts\n" for i in range(20)) + "#EXT-X-ENDLIST\n"
+    out, off = slice_playlist(pl, 45, 72)
+    segs = [ln for ln in out.splitlines() if ln.startswith("https://")]
+    assert segs == ["https://cdn/x/4.ts", "https://cdn/x/5.ts", "https://cdn/x/6.ts", "https://cdn/x/7.ts"]
+    assert off == 40.0 and out.splitlines()[-1] == "#EXT-X-ENDLIST" and "MEDIA-SEQUENCE" not in out
+    import pytest
+    with pytest.raises(ValueError):
+        slice_playlist(pl, 500, 600)

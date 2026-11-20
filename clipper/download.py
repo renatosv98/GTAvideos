@@ -119,6 +119,32 @@ def finished_playlist(text: str, base: str) -> str:
     return "\n".join(out + ["#EXT-X-ENDLIST", ""])
 
 
+def slice_playlist(text: str, a: float, b: float) -> tuple[str, float]:
+    """Keep only the segments covering [a, b] seconds (counted from the playlist's #EXTINF durations).
+    Returns (playlist, start of its first segment). ffmpeg then reads from the start instead of seeking by
+    timestamp: on 26.5h+ marathons the .ts timestamps wrap around and a timestamp seek never finds its target
+    (Peereira, 20 Nov)."""
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    first = next((i for i, ln in enumerate(lines) if ln.startswith("#EXTINF")), len(lines))
+    head = [ln for ln in lines[:first] if not ln.startswith("#EXT-X-MEDIA-SEQUENCE") and ln != "#EXT-X-ENDLIST"]
+    keep, tags, t, offset = [], [], 0.0, None
+    for ln in lines[first:]:
+        if ln == "#EXT-X-ENDLIST":
+            continue
+        if ln.startswith("#"):
+            tags.append(ln)
+            continue
+        dur = next((float(x[8:].split(",")[0]) for x in tags if x.startswith("#EXTINF:")), 0.0)
+        if t + dur > a and t < b:
+            offset = t if offset is None else offset
+            keep += [x for x in tags if not x.startswith("#EXT-X-MAP") or not keep] + [ln]
+        t += dur
+        tags = []
+    if offset is None:
+        raise ValueError(f"no segments cover {a:.0f}-{b:.0f}s (playlist has {t:.0f}s)")
+    return "\n".join(head + keep + ["#EXT-X-ENDLIST", ""]), offset
+
+
 def _fast_part(url: str, part: tuple[float, float], out_dir: Path) -> Path | None:
     """Download [a, b] of a Twitch recording that is still live, at full speed. None if not possible
     (the caller then uses the normal yt-dlp path)."""
@@ -134,13 +160,16 @@ def _fast_part(url: str, part: tuple[float, float], out_dir: Path) -> Path | Non
         req = urllib.request.Request(m3u8, headers={"User-Agent": "Mozilla/5.0"})
         text = urllib.request.urlopen(req, timeout=30).read().decode()
         pl = out_dir / "part.m3u8"
-        pl.write_text(finished_playlist(text, m3u8))
-        video = out_dir / "source.mp4"
         a, b = part
+        sliced, offset = slice_playlist(finished_playlist(text, m3u8), a, b)
+        pl.write_text(sliced)
+        video = out_dir / "source.mp4"
+        # timeout scales with the part (8x speed expected; 1x would be a stall): never hang for hours
         r = subprocess.run([shutil.which("ffmpeg") or "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
                             "-protocol_whitelist", "file,http,https,tcp,tls,crypto",
-                            "-ss", f"{a:.2f}", "-i", str(pl), "-t", f"{b - a:.2f}", "-c", "copy",
-                            "-movflags", "+faststart", str(video)], capture_output=True, text=True, timeout=3 * 3600)
+                            "-ss", f"{a - offset:.2f}", "-i", str(pl), "-t", f"{b - a:.2f}", "-c", "copy",
+                            "-movflags", "+faststart", str(video)], capture_output=True, text=True,
+                           timeout=max(600, int(b - a) // 2))
         got = _media_seconds(video) if r.returncode == 0 and video.exists() else 0
         if got < 0.9 * (b - a):
             print(f"    fast download incomplete ({got:.0f}s of {b - a:.0f}s): {r.stderr.strip()[-200:]}")
