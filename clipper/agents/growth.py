@@ -24,7 +24,7 @@ REPORT = DATA / "growth_report.md"
 LAST = DATA / "growth_last.txt"
 
 SYSTEM = """You are the growth strategist of GTAuploads, a Spanish-language GTA 6 shorts channel (YouTube Shorts,
-TikTok, Instagram Reels) that clips streams from IlloJuan, Rubius and Auronplay with their permission.
+TikTok, Instagram Reels) that clips streams from the permitted Spanish streamers with their permission.
 Goal: maximise awareness and follower growth of the three profiles. You know how each platform's profile,
 search and recommendation work (YouTube handle/description/keywords/links/banner/playlists, TikTok bio limits
 and link rules, Instagram bio/links/highlights/category). Recommendations must be specific, ready to paste,
@@ -223,7 +223,7 @@ def research() -> dict:
     r = llm.ask_json(SYSTEM + brief("growth", with_feedback=False), (
         f"Today is {datetime.now():%Y-%m-%d}. Research the web NOW (search several times, prefer sources from the "
         "last 2 weeks): what is working for Spanish-language GTA 6 / GTA short videos on YouTube Shorts, TikTok "
-        "and Instagram Reels, especially clips of IlloJuan, Rubius and Auronplay. Find: current trends and "
+        "and Instagram Reels, especially clips of the permitted Spanish streamers. Find: current trends and "
         "talking points (launch, leaks, memes, events), hashtags in use per platform (mix of big + niche, "
         "Spanish + English), hashtags to avoid (banned, spammy, irrelevant), title/hook patterns that get "
         "views, caption rules per platform (length, keyword placement, CTA), upcoming dates worth riding. "

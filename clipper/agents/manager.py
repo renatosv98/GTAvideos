@@ -325,7 +325,7 @@ def run() -> int:
     team = "\n\n".join(f"### {a}: {desc}\nCurrent instructions file:\n{guidance.instructions(a) or '(none)'}"
                        for a, desc in guidance.AGENTS.items())
     previous = REPORT.read_text()[:2500] if REPORT.exists() else "(first review)"
-    r = llm.ask_json(SYSTEM, (
+    r = llm.ask_json(SYSTEM + "\n\n" + guidance.permitted_text(), (
         f"Today: {datetime.now():%Y-%m-%d %H:%M}.\n\n# The team and their current instructions\n{team}\n\n"
         f"# System state (read first)\n{_state()}\n\n"
         f"# Publication table: every clip x every enabled platform\n{table}\n\n"

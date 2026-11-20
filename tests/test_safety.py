@@ -165,3 +165,17 @@ def test_backlog_posts_gta6_then_highest_viral_chance():
     clips = [c(1, 0, 90, "2026-11-01"), c(2, 1, 30, "2026-11-01"), c(3, 1, 70, "2026-11-05"),
              c(4, 1, 70, "2026-11-02"), c(5, 1, None, "2026-11-01")]
     assert [x["id"] for x in sorted(clips, key=scheduler.post_order)] == [4, 3, 2, 5, 1]
+
+
+def test_every_permitted_creator_reaches_every_agent():
+    """Agents get the permitted creators from creators.yaml (owner-controlled). A stale hard-coded list made the
+    manager block Peereira/DaniRep for 2 days (20 Nov)."""
+    from clipper.agents import guidance
+    from clipper.config import load_creators
+    names = [c.display_name for c in load_creators() if c.permitted]
+    for agent in guidance.AGENTS:
+        b = guidance.brief(agent)
+        assert all(n in b for n in names), agent
+    for p in (Path(scheduler.__file__).parent.parent / "config" / "agents").glob("*.md"):
+        t = p.read_text().lower()
+        assert "creator not permitted" not in t and "allowlist =" not in t, p.name

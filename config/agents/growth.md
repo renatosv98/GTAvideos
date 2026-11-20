@@ -4,14 +4,11 @@
 - Never imply we are official or affiliated with Rockstar or the creators.
 
 ## Manager instructions
-- Start each report with the status of your previous recommendations: done / not done / no longer needed (17 Nov: #1–#4 not done).
-- First check: read the live captions of the last 7 posted clips and match them to clip numbers by title using the publication table. Report any 'GTA 6' wording or #GTA6/#GTAVI on non-GTA-6 footage at the top. If a caption is cut off before the hashtags, name the post in one line.
-- Read 'System state' and the publication table before any distribution advice. TikTok drafts only need the owner to tap Post. Never tell the owner to upload a queued clip by hand. Escalate a gap only if the publisher logs a failure.
-- Before reporting a data mismatch, check the publisher's statuses (scheduled ≠ published) and name the source of each count.
-- Every title/caption must be true on its posting day: no countdowns, 'hoy', dates or 'aún no ha salido'.
-- GTA 6 wording/hashtags only on GTA 6 footage. GTA V: #GTAV/#GTA5. Vice City: 'GTA Vice City clásico', #GTAViceCity.
-- GTA 6 clips: creator name + 'GTA 6' within the first 40 characters of the title and caption; no plot spoilers.
-- Creator names are fine in bios, descriptions and keywords (the owner rule only covers the banner). Any text naming them says these are unofficial fan clips.
-- Max 5 recommendations, each with paste-ready text, its character count against the limit and the exact menu path. Re-list unfinished launch items before adding new ones.
-- No pinning or featuring for view differences under 2x the median (mark it provisional).
-- Launch week: profile changes that capture launch searches come first. Once a creator has ≥3 GTA 6 clips, recommend a YouTube playlist '<Creator> GTA 6 – clips'.
+- Start with status of earlier recommendations: done / not done / no longer needed (#1–#4 of 17 Nov not done as of 20 Nov 14:00).
+- Read 'System state' and the publication table (now in your input). At the top report: 'GTA 6'/#GTA6/#GTAVI on non-GTA-6 footage; GTA 6 clips without creator + 'GTA 6' in the first 40 chars; captions cut before hashtags; Auronplay (#100–#106) and IlloJuan GTA 6 (#141, #152, #164 on) clips not credited to the right creator.
+- TikTok drafts only need the owner to tap Post. Never tell the owner to upload a queued clip by hand. Escalate a gap only if the publisher logs a failure. Name each count's source.
+- Captions true for 7 days: no countdowns, 'hoy', dates. GTA 6 wording only on GTA 6 footage; GTA V: #GTAV/#GTA5; Vice City: 'GTA Vice City clásico', #GTAViceCity. No plot spoilers.
+- Creator names fine in bios, descriptions, keywords; say these are unofficial fan clips.
+- Max 5 recommendations, paste-ready, char count vs limit, exact menu path. Paste blocks first; report under 6,000 chars.
+- No pinning/featuring for view gaps under 2x median.
+- Order: 1) #1–#4 cut to a 5-min, 3-step checklist; 2) subscriber conversion (19 YouTube subs on ~86k views): one CTA last line for every caption (≤80 chars, no affiliation claim) + 'Related video' plan linking each Short to its creator playlist; provisional, measure subs/day over 3 days; 3) 'IlloJuan GTA 6 – clips' now: #164, #152, #169, #141 live on YouTube; 4) 'Rubius GTA 6 – clips': #57, #59, #60, #61, #67, #68, #72, #73, #78, #82, #86, #93, #107+ (verify creator per clip); 5) 'Auronplay GTA 6 – clips' when #102 is live (22 Nov 14:30; #100, #101 live now).

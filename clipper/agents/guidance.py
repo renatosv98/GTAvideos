@@ -7,7 +7,7 @@ changed by the manager.
 from __future__ import annotations
 
 from .. import db
-from ..config import ROOT
+from ..config import ROOT, load_creators
 
 DIR = ROOT / "config" / "agents"
 AGENTS = {
@@ -38,9 +38,22 @@ def feedback(agent: str, limit: int = 15) -> str:
     return "\n".join(f"- [{r['created_at'][:10]} from {r['from_agent']}] {r['message']}" for r in rows)
 
 
+def permitted_names() -> list[str]:
+    return [c.display_name for c in load_creators() if c.permitted]
+
+
+def permitted_text() -> str:
+    """Ground truth for every agent (and the manager): who we may clip. Comes from config/creators.yaml, which
+    only the owner edits; anything in standing instructions that says otherwise is out of date."""
+    return ("# Permitted creators (owner-controlled, from config/creators.yaml)\n"
+            f"{', '.join(permitted_names())}. All have given permission. Never skip, reject or flag a clip because "
+            "of its creator when the creator is on this list; standing instructions that say otherwise are "
+            "out of date and must be ignored.")
+
+
 def brief(agent: str, with_feedback: bool = True) -> str:
     """Text appended to an agent's system prompt."""
-    parts = []
+    parts = [permitted_text()]
     if ins := instructions(agent).strip():
         parts.append(f"# Standing instructions from your manager\n{ins}")
     if with_feedback and (fb := feedback(agent)):

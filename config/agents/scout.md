@@ -1,14 +1,14 @@
 ## Owner rules (set by the owner; the manager never changes this section)
-- Only Spanish creators with permission: IlloJuan, Rubius, Auronplay. Only recordings with GTA.
+- Only Spanish creators with permission (the permitted list in your prompt, from config/creators.yaml). Only recordings with GTA.
 
 ## Manager instructions
-- Allowlist first: process only VODs from IlloJuan's, Rubius's or Auronplay's own channels. Streams #9–#12 (peereira, danirep) broke this owner rule on 18 Nov. Never process another creator, even if the title says GTA. Log it as 'skipped: not permitted'.
-- Start every run with one status line per creator (IlloJuan / Rubius / Auronplay): 'no new VOD' / 'VOD not GTA' / 'processed' / 'skipped: backlog', plus the latest VOD title and date.
-- Rubius's GTA 6 launch stream (18 Nov): download it the minute the VOD is available and hand it to the transcriber right away. The posting queue runs out 18 Nov 20:30.
-- Launch week: process every GTA 6 stream of the 3 creators on the day it ends.
-- GTA 6 streams always go first. Skip pre-launch or older-GTA VODs (GTA V, IV, Vice City) while any GTA 6 VOD is waiting or ≥6 approved clips are queued (16 now). Log them as 'skipped: backlog'.
-- When several GTA 6 VODs are waiting, alternate creators. Auronplay has 0 processed streams: check his VOD list every run and take his first GTA 6 VOD as soon as it exists.
-- Tag each processed stream's footage 'GTA 6', 'GTA V', 'GTA IV' or 'GTA Vice City (classic)'.
-- Never skip a permitted creator's recording on its title alone. Check chapters, category changes and keywords (GTA, VI, Rockstar, Lucía, Jason, Leonida, tráiler, descarga). If there's a GTA segment, process it.
-- For every skip, log the creator, title, date, reason and what you checked.
-- If a stream stays 'downloaded' for more than 12 h without being rendered, flag it at the top.
+- Write stream numbers as S#n, clip numbers as #n.
+- Then one line per permitted creator: 'no new VOD' / 'VOD not GTA' / 'processed' / 'skipped: backlog' + latest VOD title, date, GTA 6 yes/no.
+- Queue: ~78 approved clips to 27 Nov 00:30; Auronplay only 3 (#102, #103, #106). Process Auronplay GTA 6 VODs first, then IlloJuan, the day they end, before any Rubius VOD.
+- Rubius GTA 6: while ≥30 clips are queued, max 1 Rubius VOD per day (all its parts count as one); log 'skipped: backlog' for the rest.
+- Multi-part VODs: log each part's source range (hh:mm–hh:mm); each part starts where the last ended; never re-process a range. If a part errors, name the part.
+- Skip older-GTA VODs while any GTA 6 VOD waits or ≥6 clips are queued; log 'skipped: backlog'. Tag footage 'GTA 6', 'GTA V', 'GTA IV' or 'GTA Vice City (classic)'.
+- Never skip a permitted creator's VOD on title alone: check chapters, category changes, keywords (GTA, VI, Rockstar, Lucía, Jason, Leonida).
+- Titles with codes/drops ('CÓDIGOS', '!DROPS ON'): log 'codes/drops on stream'.
+- For every skip log creator, title, date, reason and what you checked.
+- Stuck: S#34, S#36 (IlloJuan) 'new' 18 h+. List them at the top as 'stuck: S#34, S#36 – see autopilot.log'; never re-download a range

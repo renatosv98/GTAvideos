@@ -1,95 +1,89 @@
-# Playbook: what goes viral on this channel
-Analyst (agent 5) → selector (agent 2). Read before every stream. This overrides the selector's defaults. Data as of 18 Nov.
+⚠ PUBLICATION TABLE NOT IN INPUT (slot age only) · stats >#100 present again (15 clips, #101–#178) · TikTok stats missing (scope) · NO FOLLOWER DATA
+# Playbook: what gets views on this channel
+Analyst → selector. Read before every stream. Data as of 20 Nov ≈21:30 UTC (worked out from slot ages). Views are YT / TT / IG. Missing ≠ 0. Owner rule: views per platform are the goal metric.
 
-## Data status (read first)
-- In the data: 20 clips (#2, #4–#12, #19–#23, #27–#29, #35, #43). Not in the data: #3, #13–#18, #24–#26, #30–#34, #36–#42, #44 and later, and Rubius #13–#15 and #50–#56. The owner removed #1.
-- This run had no publication table. Ages come from age_hours, which gives one age per clip, not per platform.
-- YouTube: 20 clips live, from #2 (159.1 h) to #29 (11.1 h). #31–#36 were missed overnight and retried at 11:04. Of those, only #35 is in the data, and it already had 2 YouTube views at 1.4 h on 17 Nov. Check which copy is counted.
-- Instagram: 20 clips live, up to date. The #8–#10 copies went up later than their age_hours suggests. #28 has 5 views at 11.6 h, so check that the post is live.
-- TikTok: no clip has stats yet (video.list not authorized). Treat it as unknown, not zero.
-- No 24 h or 72 h comparison is possible yet. The closest is the sprint, where all 10 IlloJuan clips are 11.1–16.1 h old. For reference, #11 at 14.4 h had 2221 / n.a. / 2552.
-- The sprint YouTube zeros were real. Over 12.7 h, #20 went 0→4, #21 0→3, #22 0→3 and #43 0→0. At the same age, #19 went 576→1735 and #27 840→1622. #43 is still at exactly 0, so confirm it is public.
-- The bar: at least 3 clips at 2x the platform median within one cohort.
-  - Old IlloJuan batch (n=8): YouTube median 20.5, bar 41, no clip clears it. Instagram median 1931.5, bar 3863, no clip clears it.
-  - Sprint IlloJuan (n=10): YouTube median 3.5, bar 7, cleared by #19, #27, #29 and #35. This bar is weak because the median is near zero. Instagram median 214, bar 428, cleared only by #20.
+## Data status
+- Clips with readings: YT 55 and IG 54 (#24 null again), both from #2 (slot 11 Nov 20:00 UTC). TT has 0 readings because the video.list scope is missing. We have no per-platform publish times, so the real YT age of #67–#125 is unknown and shorter than slot age. #57, #59 and #60 are assumed on time.
+- Cohort labels: #118 and #130 are IlloJuan GTA 6, not Rubius.
+- Followers: none in the input, so no gain, no views per new follower and no top-sub clips. The last known figure is YT ~4,560 views/sub (19 Nov).
+- ⚠ IG ACCOUNT-LEVEL FAILURE. Every reel from #118 (slot 22:30, 19 Nov) on is at 1–5 views with 0 likes:
+  - At 5–23 h: #118 2, #125 2, #164 5, #152 2, #169 1, #130 2, #141 2, #136 2, #147 1, #158 2.
+  - Too young to judge but look the same: #112 5 (3 h), #178 2 (1 h).
+  - The last healthy reel was #111 (168, slot 20:30). Overnight and daytime slots are both broken, so neither the hour nor the content explains it.
+  - Old stuck list, none fixed: #57 10, #28 7, #60 5, #61 5, #67 7, #78 2, #82 4, #93 3.
+  - Checks: Account Status / recommendation eligibility, and the posting job's visibility, trial and hidden-from-grid settings. Then post one manual test reel.
+- YT dead (and dead on IG too): #60 90 at 51 h, #28 26 at 70 h. Check YT Studio for restrictions or claims.
 
-## Views per clip: YouTube / TikTok / Instagram
-Rubius, GTA 6 footage (pre-launch):
-- #11, download ends with 7 days left, 35.8 s, 27.1 h: 4814 / n.a. / 2563
-- #12, day-one plan as voice-over on a still trailer frame, 38.5 s, 12.1 h, posted inside the sprint: 3 / n.a. / 168
+## Post-launch first (GTA 6 gameplay)
+- 48 h figures are interpolated between the ~31 h and ~52 h readings, not measured. TT is n.a. for every clip.
+  - #57 (18.4 s, pred 55): YT 22632 → 24467 at 52.5 h, about 24.1k at 48 h. IG 10, stuck.
+  - #59 (18.1 s, pred 34): YT 13602 → 15716 at 52.0 h, about 15.3k at 48 h. IG 176.
+  - #60 (29.7 s, pred 58): YT 80 → 90 at 51 h, about 88 at 48 h. IG 5.
+- Rubius, YT/IG at slot age:
+  - #73 8359/388 (31 h), #82 5514/4 (39 h), #78 3323/2 (47 h), #61 2609/5 (33 h), #125 1992/2 (21 h), #68 1502/209 (37 h)
+  - #107 1435/155 (27 h), #72 1384/149 (43 h), #111 1257/168 (25 h), #93 1257/3 (35 h), #67 1202/7 (49 h), #86 1176/165 (45 h)
+  - Too young: #136 8/2, #147 13/1, #158 14/2, #112 4/5, #178 1/2 (1–9 h).
+- IlloJuan GTA 6: #169 5095/1 (15 h), #118 3020/2 (23 h), #164 1503/5 (19 h), #130 1283/2 (13 h), #152 1261/2 (17 h), #141 337/2 (11 h).
+- Auronplay: #101 2237/199 (29 h), #100 1424/159 (41 h).
+- YT winners keep growing: in 20.7 h #73 added +4185, #82 +3026, #78 +1318. Mid clips level off, adding only +76 to +222 (#72, #86, #67, #93, #68). Judge YT at 48 h, not 24 h.
 
-Old IlloJuan batch (4 h apart, 115.1–159.1 h):
-- GTA V footage:
-  - #7 heist, 28.1 s: 30 / n.a. / 2441
-  - #8 triathlon bike, 22.0 s: 29 / n.a. / 2434
-  - #4 terrace, 43.4 s: 21 / n.a. / 968
-  - #5 recap opening, 37.3 s: 20 / n.a. / 200
-  - #2 triathlon collapse, 36.3 s: 8 / n.a. / 1948
-- GTA 6 footage (pre-launch):
-  - #9 download, 39.6 s: 21 / n.a. / 1915
-  - #6 sky drawing, 33.4 s: 10 / n.a. / 2165
-  - #10 festival webpage, 23.8 s: 7 / n.a. / 206
+## Cohorts (YT median / IG median). Pre-launch findings don't carry over.
+- Old batch #2–#11: YT 18–54, except #11 14984. IG 1955.
+- Sprint (n=18): YT 1759, IG 214.
+- Rubius post-launch (≥20 h, n=15): YT 1502. IG has 8 stuck; the 7 working posts have a median of 168.
+- Auronplay (n=2): YT 1424/2237. IG 159/199.
+- IlloJuan GTA 6 (n=6): YT 1393. IG all ≤5 (broken).
 
-Sprint, 17–18 Nov (IlloJuan, GTA V footage, 30 min apart, 11.1–16.1 h; T = template title):
-- #19 Rambo, 25.6 s: 1735 / n.a. / 178
-- #27 dumpster, T "…y pasa esto", 23.2 s: 1622 / n.a. / 267
-- #29 heist payout, T "…y mira cuánto se lleva", 21.8 s: 1118 / n.a. / 212
-- #35 perfect drive, T "…y pasa esto", 20.0 s: 11 / n.a. / 251
-- #20 helicopter plan, 23.5 s: 4 / n.a. / 2257
-- #22 mystery car, 23.3 s: 3 / n.a. / 216
-- #23 psychologist, 27.2 s: 3 / n.a. / 230
-- #21 shooting range, 34.9 s: 3 / n.a. / 158
-- #28 helicopter jump, T "…y pasa esto", 27.8 s: 2 / n.a. / 5
-- #43 emergency landing, 33.4 s: 0 / n.a. / 186
+## Bar check (needs ≥3 clips at 2x the median)
+- YT post-launch (≥13 h, n=22): median 1502.5, bar 3005.
+  - 7 clips clear it: #57, #59, #73, #82, #169, #118, #78.
+  - 6 of the 7 are "surprise" clips. #78 is an NPC car killing his iguana.
+  - Surprise clips clearing the bar: 6 of 13. Fail/rage clips: 1 of 9.
+- IG post-launch, working posts only (n=9): median 168, bar 336. Only #73 clears it.
+- **YouTube (PROVISIONAL, because YT ages are unknown):** rank visible "GTA 6 surprises him" moments above plan-fails, rage and wanted-star verdicts.
+- **Instagram:** no pattern yet (the account is broken).
+- **TikTok:** no data.
 
-## Owner rules (always respect these)
-- Views are the goal metric, measured per platform.
-- No slow talking-head clips without a payoff. #1 was removed for this.
-- GTA 6 news, trailer and download reactions are allowed. Rank or limit them, never ban them.
+## What gets views (tiers, PROVISIONAL)
+- **Tier 1: surprise.** The game or NPCs do something unexpected that you can see, he reacts with disbelief, and the setup is in the first second.
+  - YT median 1992 (n=13).
+  - Rubius 1747 vs his fails 1384.
+  - IlloJuan 3020 (#169, #118, #164) vs his fails 1272 (#130, #152).
+  - Auronplay: untested, no Tier 1 clip yet.
+- **Tier 2: his plan fails, rage, or a game verdict** (wanted star, crime reported, death screen). YT median 1384 (n=9): #78 3323, #61 2609, #101 2237, #100 1424, #72 1384.
+  - Holds for Auronplay: #101 2237 and #100 1424 sit near the post-launch median.
+  - Wanted-star and cop-fight clips are Tier 2: #130 1283, #152 1261.
+- **Tier 3: talk with nothing to see** (#12 1766, #15 1288; both pre-launch). Rank it last, at most 1 per 5 clips (provisional limit). Never banned.
 
-## Platform splits (#20: 4 / 2257, #27: 1622 / 267)
-- Instagram decides within about 3 h and then stops. Over 12.7 h, #20 went 2205→2257, #27 265→267 and #19 175→178. YouTube keeps growing for a day or more: #11 went 2221→4814 and #19 576→1735.
-- The winners don't overlap. YouTube's winners (#19, #27, #29) got 178–267 on Instagram, and Instagram's winner (#20) got 4 on YouTube. Only #11 won on both.
-- #20 and #27 are near twins: IlloJuan, GTA V, irony arc, 23.5 s vs. 23.2 s, posted 30 min apart. So the split comes from each platform's own test, not from the content.
-- One line per platform:
-  - YouTube: keep IlloJuan GTA V clips at 20–26 s and end on the result shown on screen.
-  - Instagram: no pattern yet.
-  - TikTok: no pattern yet (no data).
+## Length, title, hour
+- Length: 20–26 s and 27–30 s perform the same (post-launch YT 1435 with n=11 vs 1502 with n=9; Rubius alone 1435 vs 1443). That rule is DROPPED, so let the payoff set the length.
+- Under 20 s: TESTING. Only #57 and #59 so far, and both were on time on launch day. #112 is pending.
+- Template vs specific title: 1435 (n=5) vs 1503 (n=17). No effect.
+- Posting hour can't be tested on YT because the copies went up late.
+  - IG overnight (#86, #72, #100): median 159, against 187.5 for the six daytime posts, so no overnight lift. Since #118 every hour is broken.
+  - TT: no data.
+  - The selector's planned hours (17:00/18:00) were not used: #164 went out at 02:30, #152 at 04:30, #169 at 06:30, #141 at 10:30.
 
-## What gets views
-- YouTube winners (1118–4814 views at 11–27 h): #11, #19, #27, #29. All four end on a result you can see: the 7d 14h countdown, MISIÓN FALLIDA, the police at the dumpster, the $444,744 payout screen. The three IlloJuan winners run 21.8–25.6 s.
-- Open on the brag or the number: #27 "si me meto en el puto contenedor", #19 "Voy a tener que mataros", #29 "botín 8 millones".
-- Irony arc (a brag or plan, then a fail): this format leads #7, #19, #27 and #20. But #20 (4), #43 (0) and #28 (2) sat near zero on YouTube, so it isn't enough on its own.
-- The only comments so far mock him, on #19 ("Es malísimo jugando 😂😂😂") and on #27.
+## Avoid (rank lower; nothing is banned)
+- Cutting during the payoff action. The #82 top comment: "haces un corte en el momento que lo tira".
+- A payoff that isn't clearly visible (#68 Bigfoot, 1502).
+- Old batch: recap openings (#5, IG 201), a webpage on screen (#10, 207), clips over 40 s (#4, 968).
 
-## Avoid (rank lower; nothing here is banned)
-- IlloJuan clips over 26 s on YouTube: #23 at 27.2 s (3), #28 at 27.8 s (2), #43 at 33.4 s (0), #21 at 34.9 s (3).
-- Voice-over on a still frame or a webpage, with nothing to see: #12 (3 / 168) and #10 (7 / 206).
-- Warm-up or recap openings: #5 (20 / 200) and #2 (8 on YouTube).
+## Hypotheses
+- SOLID-ish: on YT, Tier 1 surprise beats Tier 2 fails, across two creators.
+- TESTING: under 20 s post-launch; Tier 1 for Auronplay.
+- HUNCH: animal encounters are the weaker kind of surprise. #68, #86, #111, #125 and #78 have a median of 1502. Surprises from people, crowds or game systems (#73, #82, #169, #118, #164, #107) have a median of 4058.
+- HUNCH: the late YT retries went up as a burst and held each other down. #61–#93 level off at 1.2–2.6k.
+- DROPPED:
+  - Rules: the 20–26 s rule, title template as a lever, an overnight lift on IG, the IlloJuan 20–26 s rule.
+  - Ideas: "YT tests a few clips per burst", "platform winners don't overlap", "avoid voice-over on a still frame", "violence is restricted on IG".
 
-## Creators (keep their findings separate)
-- IlloJuan: everything above.
-- Rubius: n=2. #11 (payoff on screen) got 4814 / 2563. #12 (voice-over only) got 3 / 168. No pattern yet, and don't apply the IlloJuan length rule to him.
-- Auronplay: no clips yet. No GTA Vice City footage clips yet.
-
-## GTA 6 gameplay (post-launch, from 19 Nov)
-- No clips yet. Start a fresh tally here. Pre-launch findings may not carry over.
-
-## Hypotheses (status)
-- MEETS THE BAR (YouTube, IlloJuan sprint only, weak bar): 20–26 s. 4 of 6 clips in that range cleared 7 views; 0 of 4 clips over 27 s did. #20 and #22 are short but still got 4 and 3, so length alone is not enough.
-- TESTING: an on-screen result at the end (#11, #19, #27, #29).
-- TESTING: title templates vs. titles naming the event.
-  - Templates (#27, #29, #35, #28): YouTube median 564.5, Instagram median 231.5.
-  - Specific titles (#19–#23, #43): YouTube median 3, Instagram median 201.
-  - Not decided: #28 (2 / 5) and #35 (11 / 251) miss.
-- TESTING: series and prequels. #8 (29 / 2434) beat #2 (8 / 1948). #43, part 2 of flight school, got 0 / 186.
-- HUNCH: YouTube only tests a few clips per burst. In the sprint, the 1st (#19), 2nd (#27) and last (#29) won; the clips in between got 0–11. This is the manager's call, and it fails if the 11:04 retry changed the upload order.
-- HUNCH: Instagram gave about 1900–2441 views to 6 of 8 old-batch clips but more than 267 to only 1 of 10 sprint clips. The Instagram post times aren't in the data.
-- PROVISIONAL: max 1 non-gameplay clip per 5. Non-gameplay so far: #11 (4814 / 2563), #6 (10 / 2165), #9 (21 / 1915), #10 (7 / 206), #12 (3 / 168). None clears the bar.
-- DROPPED: "Instagram rewards GTA 6 hype more" (#7 GTA V 2441 vs. #6 2165). No signal yet: music mood.
-
-## Prediction calibration (Spearman, predicted chance vs. views; ties approximated)
-- All 20 clips: YouTube about +0.39, Instagram about +0.42, TikTok n/a. Both are above 0.3, so the selector keeps its scores.
-- By cohort: old batch (n=8) −0.09 YouTube / −0.08 Instagram. Sprint IlloJuan (n=10) +0.53 / +0.38. Rubius n=2, in the right order. The pooled number is inflated by cohort differences, so treat it as borderline.
-- Misses: #2 (80 → 8 on YouTube), #4 (66 → 21), #29 (45, the lowest sprint score → 1118), #20 (52 → top of Instagram with 2257).
-- Sprint predictions only spanned 45–55. Use the full 25–60 range. With every pick, name the hypothesis, the title template, the creator, the footage tag and the length.
+## Prediction calibration (Spearman, score vs views)
+- Before #175:
+  - YT, all clips ≥11 h (n=50): −0.15.
+  - YT post-launch (n=23): −0.34 (was −0.51).
+  - IG (n=49): −0.19, mostly broken posts, so not a content signal.
+  - TT: n/a.
+- From #175 (tier bands): n=1 (#178, 1 h old), so it can't be computed yet.
+- 22 of 23 post-launch scores sit between 48 and 58. Biggest misses: #59 34 → 15716, #73 48 → 8359, #60 58 → 90, #86 58 → 1176, #67 58 → 1202.
+- Rank by tier and use the score only as a tiebreak.

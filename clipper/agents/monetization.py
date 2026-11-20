@@ -25,7 +25,7 @@ BRIEF = DATA / "monetization_brief.json"
 LAST = DATA / "monetization_last.txt"
 
 SYSTEM = """You are the monetization lead of GTAuploads, a Spanish-language GTA 6 shorts channel on YouTube Shorts,
-TikTok and Instagram Reels that clips livestreams of IlloJuan, Rubius and Auronplay with their permission (vertical
+TikTok and Instagram Reels that clips livestreams of the permitted Spanish streamers with their permission (vertical
 re-edits: face cam + gameplay, jump cuts, hook text, captions, CC-BY background music). You are an expert in every
 platform's monetization programs, eligibility rules, payout setup, and the policies that block clip channels
 (reused/unoriginal content, copyright claims, originality requirements, minimum video length, regional availability).
