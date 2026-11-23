@@ -324,14 +324,15 @@ def _upload_ready_locked() -> list[str]:
             vid = youtube.upload(final, r["title"], (work / "description.txt").read_text(), when,
                                  json.loads((work / "tags.json").read_text()))
         except Exception as e:
-            cap = "uploadLimitExceeded" in str(e)
+            from .scheduler import yt_refused
+            cap = yt_refused(e)
             with db.connect() as conn:
                 conn.execute("UPDATE compilations SET status=?, error=? WHERE id=?",
                              ("waiting_cap" if cap else "ready", str(e)[:500], r["id"]))
-            out.append(f"compilation #{r['id']}: " + ("YouTube daily limit, will retry" if cap else f"failed: {e}"))
+            out.append(f"compilation #{r['id']}: " + ("YouTube limit/quota, will retry" if cap else f"failed: {e}"))
             if cap:
                 from .scheduler import _yt_cap_hit
-                _yt_cap_hit()
+                _yt_cap_hit(e)
                 break
             continue
         from .scheduler import _yt_cap_clear

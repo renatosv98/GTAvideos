@@ -160,6 +160,14 @@ def test_youtube_backoff_after_upload_limit(tmp_path, monkeypatch):
     assert not (tmp_path / "yt.json").exists() and len(alerts) == 2
 
 
+def test_youtube_quota_does_not_burn_clip_attempts():
+    """22-23 Nov: quotaExceeded was recorded as a clip failure every 15 min, so clips hit MAX_ATTEMPTS and
+    stopped. Quota and upload-limit refusals must back off instead."""
+    quota = 'HttpError 403 ... "reason": "quotaExceeded"'
+    assert scheduler.yt_refused(quota) and scheduler.yt_refused("uploadLimitExceeded")
+    assert not scheduler.yt_refused("HttpError 400 invalidTitle")
+
+
 def test_backlog_posts_gta6_then_highest_viral_chance():
     c = lambda i, prio, score, slot: {"id": i, "prio": prio, "score": score, "slot_at": slot}
     clips = [c(1, 0, 90, "2026-11-01"), c(2, 1, 30, "2026-11-01"), c(3, 1, 70, "2026-11-05"),

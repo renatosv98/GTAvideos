@@ -363,7 +363,13 @@ def _yt_capped() -> bool:
     return datetime.now(UTC) - last < timedelta(minutes=YT_BACKOFF_MIN)
 
 
-def _yt_cap_hit() -> None:
+def yt_refused(err) -> bool:
+    """YouTube refusals that are not the clip's fault: the channel upload limit, or the daily API quota (resets at
+    midnight Pacific, 08:00 UK). The clip stays queued without burning its retry attempts."""
+    return any(k in str(err) for k in ("uploadLimitExceeded", "quotaExceeded"))
+
+
+def _yt_cap_hit(err="") -> None:
     import json
     f = _yt_cap_file()
     now = datetime.now(UTC).isoformat()
@@ -371,8 +377,9 @@ def _yt_cap_hit() -> None:
         st = json.loads(f.read_text())
     except (OSError, ValueError):
         st = {"since": now}
-        _alarm_ok("YouTube refused uploads (channel limit for unverified channels). Retrying hourly; "
-                  "verify the channel to raise the limit.")
+        why = ("daily API quota used up, resets 08:00 UK" if "quotaExceeded" in str(err)
+               else "channel upload limit")
+        _alarm_ok(f"YouTube refused uploads ({why}). Clips stay queued; retrying hourly.")
     st["last"] = now
     f.write_text(json.dumps(st))
 
@@ -744,11 +751,11 @@ def _publish_due(dry_run: bool = False) -> None:
                 except SafetyStop:
                     raise
                 except Exception as e:
-                    if "uploadLimitExceeded" in str(e):
-                        # new channels have a daily upload cap; the clip stays queued and is retried next run
-                        print("   YouTube daily upload limit reached; will retry within the hour")
+                    if yt_refused(e):
+                        # channel upload limit or API quota: not the clip's fault, so no attempt is burnt
+                        print("   YouTube refused (upload limit or API quota); will retry within the hour")
                         yt_full = True
-                        _yt_cap_hit()
+                        _yt_cap_hit(e)
                     else:
                         print(f"   YouTube failed: {e}")
                         with db.connect() as conn:
