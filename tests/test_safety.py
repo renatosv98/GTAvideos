@@ -172,7 +172,30 @@ def test_backlog_posts_gta6_then_highest_viral_chance():
     c = lambda i, prio, score, slot: {"id": i, "prio": prio, "score": score, "slot_at": slot}
     clips = [c(1, 0, 90, "2026-11-01"), c(2, 1, 30, "2026-11-01"), c(3, 1, 70, "2026-11-05"),
              c(4, 1, 70, "2026-11-02"), c(5, 1, None, "2026-11-01")]
-    assert [x["id"] for x in sorted(clips, key=scheduler.post_order)] == [4, 3, 2, 5, 1]
+    assert [x["id"] for x in sorted(clips, key=scheduler.post_order)] == [4, 3, 5, 2, 1]  # no score = 50
+
+
+def test_proven_creators_go_first(tmp_path, monkeypatch):
+    """23 Nov: the owner wants clips ordered by how each streamer's posted clips actually performed."""
+    import sqlite3
+    conn = sqlite3.connect(":memory:"); conn.row_factory = sqlite3.Row
+    conn.executescript("CREATE TABLE streams (id INTEGER PRIMARY KEY, creator_id TEXT);"
+                       "CREATE TABLE clips (id INTEGER PRIMARY KEY, stream_id INTEGER);"
+                       "CREATE TABLE stats (clip_id INTEGER, platform TEXT, age_hours REAL, views INTEGER);"
+                       "INSERT INTO streams VALUES (1,'big'),(2,'small');")
+    for i in range(10):
+        conn.execute("INSERT INTO clips VALUES (?,?)", (i, 1 if i < 5 else 2))
+        conn.execute("INSERT INTO stats VALUES (?,'youtube',48,?)", (i, 20000 if i < 5 else 2000))
+    conn.execute("INSERT INTO clips VALUES (99, 2)")   # too young to count
+    conn.execute("INSERT INTO stats VALUES (99,'youtube',2,999999)")
+    w = scheduler.creator_weights(conn)
+    assert w["big"] > 1.3 and w["small"] < 0.7
+    c = lambda i, cr, score: {"id": i, "creator_id": cr, "prio": 1, "score": score, "slot_at": "2026-11-01"}
+    order = sorted([c(1, "small", 90), c(2, "big", 40), c(3, "new", 60)], key=lambda x: scheduler.post_order(x, w))
+    assert [x["id"] for x in order] == [2, 3, 1]
+    # GTA 6 still beats everything, and with no stats the viral chance decides
+    assert scheduler.post_order({**c(4, "small", 10), "prio": 1}, w) < scheduler.post_order({**c(5, "big", 99), "prio": 0}, w)
+    assert scheduler.post_order(c(6, "x", 80)) < scheduler.post_order(c(7, "x", 20))
 
 
 def test_every_permitted_creator_reaches_every_agent():

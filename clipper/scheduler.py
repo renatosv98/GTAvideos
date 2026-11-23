@@ -71,30 +71,62 @@ def assign_slot(conn: sqlite3.Connection) -> str:
     return candidate.isoformat()
 
 
+CREATOR_PRIOR_CLIPS = 5   # shrink a creator's average toward the channel average as if it had 5 average clips
+CREATOR_MIN_AGE_H = 12    # only clips that have been out this long count as evidence
+
+
+def creator_weights(conn: sqlite3.Connection) -> dict[str, float]:
+    """How well each creator's posted clips actually did: average views (all platforms) of clips at least 12 h old,
+    shrunk toward the channel average so 2 lucky clips don't dominate, divided by the channel average.
+    1.0 = average; Rubius ~1.5 means his clips get ~50% more views. Creators with no data get 1.0."""
+    try:
+        rows = conn.execute(
+        "WITH latest AS (SELECT clip_id, platform, MAX(age_hours) AS age, views FROM stats GROUP BY clip_id, platform) "
+        "SELECT s.creator_id AS cr, SUM(l.views) AS v FROM latest l JOIN clips c ON c.id=l.clip_id "
+        "JOIN streams s ON s.id=c.stream_id GROUP BY l.clip_id HAVING MAX(l.age) >= ?", (CREATOR_MIN_AGE_H,)
+        ).fetchall()
+    except sqlite3.OperationalError:  # no stats table yet (fresh install)
+        return {}
+    if not rows:
+        return {}
+    avg = sum(r["v"] or 0 for r in rows) / len(rows) or 1.0
+    by: dict[str, list[float]] = {}
+    for r in rows:
+        by.setdefault(r["cr"], []).append(r["v"] or 0)
+    k = CREATOR_PRIOR_CLIPS
+    return {cr: (sum(v) + k * avg) / (len(v) + k) / avg for cr, v in by.items()}
+
+
+def expected_views(score, weight: float) -> float:
+    """Ranking value for a clip: proven creator performance first; the selector's viral chance only nudges it
+    (+-15%), because on 62 clips it did not predict views (correlation ~0 on 23 Nov)."""
+    return weight * (0.85 + 0.3 * float(score or 50) / 100)
+
+
 def reprioritize(conn: sqlite3.Connection) -> None:
-    """Re-deal the open slots so the highest viral-chance clip always goes out next.
-    Clips already uploaded somewhere (e.g. scheduled on YouTube) keep their slot."""
-    # Clips only *scheduled* on YouTube can still move if we have YouTube edit permission (sync_youtube_schedule
-    # then moves their publish time); anything already live somewhere keeps its slot.
-    from .uploaders import youtube
-    locked = "('published')" if youtube.can_edit() else "('scheduled','published')"
+    """Re-deal the open slots so the clip with the best expected views always goes out next.
+    Clips already uploaded anywhere (incl. scheduled on YouTube) keep their slot: every YouTube reschedule costs
+    50 API quota units, and 533 of them used up the daily quota on 22-23 Nov."""
     now = datetime.now(UTC).isoformat()
     rows = conn.execute(
-        "SELECT c.id, c.slot_at, c.score, COALESCE(s.gta6, 0) AS prio FROM clips c JOIN streams s ON s.id=c.stream_id "
+        "SELECT c.id, c.slot_at, c.score, s.creator_id, COALESCE(s.gta6, 0) AS prio FROM clips c "
+        "JOIN streams s ON s.id=c.stream_id "
         "WHERE c.status='approved' AND c.slot_at IS NOT NULL AND c.slot_at > ? "
-        f"AND c.id NOT IN (SELECT clip_id FROM uploads WHERE status IN {locked})", (now,)
+        "AND c.id NOT IN (SELECT clip_id FROM uploads WHERE status IN ('scheduled','published','inbox'))", (now,)
     ).fetchall()
+    w = creator_weights(conn)
     slots = sorted(r["slot_at"] for r in rows)
-    ranked = sorted(rows, key=lambda r: (-r["prio"], -(r["score"] or 0), r["id"]))
+    ranked = sorted(rows, key=lambda r: (-r["prio"], -expected_views(r["score"], w.get(r["creator_id"], 1.0)), r["id"]))
     for r, slot in zip(ranked, slots):
         conn.execute("UPDATE clips SET slot_at=? WHERE id=?", (slot, r["id"]))
 
 
-
-def post_order(clip) -> tuple:
+def post_order(clip, weights: dict | None = None) -> tuple:
     """Who goes out first when several clips are due (e.g. a backlog while YouTube's limit was full):
-    GTA 6 first, then highest viral chance (selector's score), then oldest slot."""
-    return (-(clip["prio"] or 0), -(clip["score"] or 0), clip["slot_at"] or "")
+    GTA 6 first, then best expected views (creator's real performance x viral chance), then oldest slot."""
+    w = (weights or {}).get(clip["creator_id"] if "creator_id" in clip.keys() else None, 1.0)
+    return (-(clip["prio"] or 0), -expected_views(clip["score"], w), clip["slot_at"] or "")
+
 
 MAX_ATTEMPTS = 5  # after this many failures the publisher stops; the manager decides (retry or escalate)
 
@@ -693,7 +725,8 @@ def _publish_due(dry_run: bool = False) -> None:
             "SELECT clips.*, streams.creator_id, COALESCE(streams.gta6, 0) AS prio FROM clips "
             "JOIN streams ON streams.id = clips.stream_id "
             "WHERE clips.status IN ('approved','published') AND slot_at IS NOT NULL ORDER BY slot_at").fetchall()
-        clips = sorted(clips, key=post_order)
+        cw = creator_weights(conn)
+        clips = sorted(clips, key=lambda c: post_order(c, cw))
         yt_24h = conn.execute("SELECT COUNT(*) FROM uploads WHERE platform='youtube' AND remote_id IS NOT NULL "
                               "AND created_at > datetime('now','-1 day')").fetchone()[0]
         try:
