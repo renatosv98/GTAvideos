@@ -398,7 +398,7 @@ def _yt_capped() -> bool:
 def yt_refused(err) -> bool:
     """YouTube refusals that are not the clip's fault: the channel upload limit, or the daily API quota (resets at
     midnight Pacific, 08:00 UK). The clip stays queued without burning its retry attempts."""
-    return any(k in str(err) for k in ("uploadLimitExceeded", "quotaExceeded"))
+    return any(k in str(err) for k in ("uploadLimitExceeded", "quotaExceeded", "invalid_grant"))
 
 
 def _yt_cap_hit(err="") -> None:
@@ -410,6 +410,7 @@ def _yt_cap_hit(err="") -> None:
     except (OSError, ValueError):
         st = {"since": now}
         why = ("daily API quota used up, resets 08:00 UK" if "quotaExceeded" in str(err)
+               else "login expired: run `clipper auth youtube` in Terminal" if "invalid_grant" in str(err)
                else "channel upload limit")
         _alarm_ok(f"YouTube refused uploads ({why}). Clips stay queued; retrying hourly.")
     st["last"] = now

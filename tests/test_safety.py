@@ -165,6 +165,7 @@ def test_youtube_quota_does_not_burn_clip_attempts():
     stopped. Quota and upload-limit refusals must back off instead."""
     quota = 'HttpError 403 ... "reason": "quotaExceeded"'
     assert scheduler.yt_refused(quota) and scheduler.yt_refused("uploadLimitExceeded")
+    assert scheduler.yt_refused("('invalid_grant: Token has been expired or revoked.', {...})")  # 23-24 Nov
     assert not scheduler.yt_refused("HttpError 400 invalidTitle")
 
 
