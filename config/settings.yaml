@@ -52,6 +52,8 @@ render:
   caption_words_per_line: 3
   font: "Arial Black"
   crf: 20
+  follow_text: "SÍGUENOS PARA MÁS GTA 6"   # on-screen follow prompt in the last seconds (24 Nov: 86 subs from 349k views)
+  follow_seconds: 2.5
 
 schedule:
   interval_hours: 4

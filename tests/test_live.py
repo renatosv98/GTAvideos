@@ -173,3 +173,24 @@ def test_playlist_slice_takes_only_needed_segments():
     import pytest
     with pytest.raises(ValueError):
         slice_playlist(pl, 500, 600)
+
+
+def test_follow_prompt_only_at_the_end(tmp_path):
+    """24 Nov: 86 subscribers from 349k views, so every short ends with a follow prompt (red box under the credit)."""
+    import subprocess
+    from types import SimpleNamespace
+    from clipper import compilation, render
+    src = tmp_path / "src.mp4"
+    compilation._ff("-f", "lavfi", "-i", "color=c=gray:size=1920x1080:rate=30:duration=12", "-f", "lavfi", "-i",
+                    "sine=frequency=440:duration=12", "-shortest", "-pix_fmt", "yuv420p", str(src))
+    creator = SimpleNamespace(credit="twitch.tv/test", facecam={}, id="test")
+    out = render.render_clip(src, 0, 12, [], creator, tmp_path / "out", facecam={})
+
+    def red_at(t):
+        png = tmp_path / f"f{t}.png"
+        subprocess.run([render.render_ffmpeg(), "-v", "error", "-y", "-ss", str(t), "-i", str(out), "-frames:v", "1",
+                        "-vf", "crop=1080:90:0:135", "-f", "rawvideo", "-pix_fmt", "rgb24", str(png)], check=True)
+        px = png.read_bytes()
+        return sum(1 for i in range(0, len(px), 3) if px[i] > 170 and px[i + 1] < 90 and px[i + 2] < 90) > 5000
+    assert not red_at(2.0) and not red_at(8.0)
+    assert red_at(11.0)

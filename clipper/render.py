@@ -249,6 +249,13 @@ def render_clip(source: Path, start: float, end: float, words: list[dict], creat
                 f"afade=t=out:st={max(0.0, dur - 1.5):.3f}:d=1.5[m0];"
                 f"[m0][sc]sidechaincompress=threshold=0.05:ratio=2.5:attack=30:release=500[mduck];"
                 f"[voice][mduck]amix=inputs=2:duration=first:normalize=0,alimiter=limit=0.89[aud];")
+    follow = cfg.get("follow_text")
+    fsec = float(cfg.get("follow_seconds", 2.5))
+    if follow and dur > fsec + 6:  # end-of-clip follow prompt; small, under the credit, so the payoff stays visible
+        (out_dir / "follow.txt").write_text(str(follow), encoding="utf-8")
+        graph += (f";[{last}]drawtext={fontopt}textfile=follow.txt:fontsize=50:fontcolor=white:box=1:"
+                  f"boxcolor=0xE62117@0.92:boxborderw=18:x=(w-text_w)/2:y=150:enable='gte(t,{dur - fsec:.2f})'[fw]")
+        last = "fw"
     graph = pre + graph + f";[{last}]{credit}[v]"
 
     cmd = [
