@@ -9,6 +9,7 @@ from __future__ import annotations
 import base64
 import glob
 import json
+import re
 import os
 import shutil
 import subprocess
@@ -44,6 +45,8 @@ def ask_json(system: str, prompt: str, schema: dict, images: list[Path] | None =
              model: str | None = None, effort: str | None = None, web: bool = False) -> dict[str, Any]:
     """Send a prompt (+ optional images) and get back JSON matching `schema`.
     web=True lets Claude search and read the web first (market/trend research; Claude Code backend only)."""
+    from .redact import redact
+    system, prompt = redact(system), redact(prompt)  # agents read logs/errors; never pass a token to Claude
     cfg = _cfg()
     model = model or cfg.get("model", "claude-opus-5-5")
     effort = effort or cfg.get("effort", "medium")
@@ -63,6 +66,9 @@ def ask_json(system: str, prompt: str, schema: dict, images: list[Path] | None =
     raise AssertionError("unreachable")
 
 
+_SECRET_ENV = re.compile(r"KEY|SECRET|TOKEN|PASSWORD|INSTAGRAM|TIKTOK", re.I)
+
+
 def _claude_code(system, prompt, schema, images, model, effort, web=False) -> dict:
     with tempfile.TemporaryDirectory(prefix="clipper-llm-") as tmp:
         tmpd = Path(tmp)
@@ -79,8 +85,12 @@ def _claude_code(system, prompt, schema, images, model, effort, web=False) -> di
                "--no-session-persistence", "--strict-mcp-config", "--setting-sources", "",
                "--max-turns", str(len(names) + (40 if web else 5))]
         tools = (["Read"] if names else []) + (["WebSearch", "WebFetch"] if web else [])
-        cmd += ["--tools", ",".join(tools), "--allowedTools", ",".join(tools)] if tools else ["--tools", ""]
-        env = {k: v for k, v in os.environ.items() if k != "ANTHROPIC_API_KEY"}  # force subscription login
+        # Prompts contain text from the internet (chat, titles, transcripts). Even if one tries to steer Claude,
+        # it can only read the frames in its own temp folder: never the home folder (.env, secrets/, ~/.ssh).
+        cmd += ["--tools", ",".join(tools), "--allowedTools", ",".join(tools),
+                "--disallowedTools", "Read(~/**),Read(//Users/**),Read(//etc/**)"] if tools else ["--tools", ""]
+        # force subscription login, and pass no keys/tokens at all to the subprocess
+        env = {k: v for k, v in os.environ.items() if not _SECRET_ENV.search(k)}
         proc = subprocess.run(cmd, input=prompt, capture_output=True, text=True, cwd=tmpd, env=env,
                               timeout=int(_cfg().get("timeout_seconds", 1800)))
     try:

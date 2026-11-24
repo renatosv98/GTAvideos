@@ -211,3 +211,46 @@ def test_every_permitted_creator_reaches_every_agent():
     for p in (Path(scheduler.__file__).parent.parent / "config" / "agents").glob("*.md"):
         t = p.read_text().lower()
         assert "creator not permitted" not in t and "allowlist =" not in t, p.name
+
+
+def test_tokens_are_redacted_everywhere(tmp_path, monkeypatch):
+    """24 Nov: a network error printed Instagram's request URL, access token included, into publish.log."""
+    import io
+    import sqlite3
+    from clipper import redact as r
+    fake = "IGAA" + "x" * 40
+    err = f"HTTPSConnectionPool(host='graph.facebook.com'): Max retries exceeded with url: /v27.0/1?fields=username&access_token={fake}"
+    assert fake not in r.redact(err) and "graph.facebook.com" in r.redact(err)
+    for s in ["sk-ant-api03-" + "a" * 30, "ya29." + "b" * 30, "1//0" + "c" * 30, "GOCSPX-" + "d" * 20,
+              "act." + "e" * 30, '{"refresh_token": "' + "f" * 30 + '"}', "Authorization: Bearer " + "g" * 30]:
+        assert r.redact(s).count("<redacted>") == 1, s
+    monkeypatch.setenv("SOME_API_KEY", "plain-secret-value-123")
+    r._cache = None
+    assert "plain-secret-value-123" not in r.redact("boom plain-secret-value-123 boom")
+    buf = io.StringIO()
+    r.RedactingStream(buf).write(err)
+    assert fake not in buf.getvalue()
+    from clipper.db import _RedactingConnection
+    conn = sqlite3.connect(tmp_path / "t.db", factory=_RedactingConnection)
+    conn.execute("CREATE TABLE t (e TEXT)")
+    conn.execute("INSERT INTO t VALUES (?)", (err,))
+    assert fake not in conn.execute("SELECT e FROM t").fetchone()[0]
+
+
+def test_no_secret_is_ever_committed():
+    """Runs in the pre-commit hook: fails if any file going into git (the repo is public) holds a key or token."""
+    import subprocess
+    from clipper import redact as r
+    files = subprocess.run(["git", "ls-files", "--cached", "--others", "--exclude-standard"], capture_output=True,
+                           text=True, cwd=r.ROOT).stdout.split()
+    bad = []
+    for f in files:
+        p = r.ROOT / f
+        if not p.is_file() or p.stat().st_size > 5_000_000 or p.suffix in (".png", ".jpg", ".mp4", ".mp3", ".ttf"):
+            continue
+        t = p.read_text(errors="ignore")
+        if f != "tests/test_safety.py" and r.redact(t) != t:
+            bad.append(f)
+    assert not bad, f"secrets found in files that would be committed: {bad}"
+    for name in (".env", "secrets/youtube_token.json", "data/clipper.db"):
+        assert subprocess.run(["git", "check-ignore", "-q", name], cwd=r.ROOT).returncode == 0, name

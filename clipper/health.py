@@ -156,7 +156,9 @@ def notify(problems: list[tuple[str, str]]) -> None:
     except (OSError, ValueError):
         state = {}
     now = time.time()
+    from .redact import redact
     for key, msg in problems:
+        msg = redact(msg)
         if now - state.get(key, 0) < REPEAT_HOURS * 3600:
             continue
         state[key] = now

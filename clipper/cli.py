@@ -105,6 +105,8 @@ def _frame(url: str, at: float) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    from .redact import install
+    install()  # logs never contain keys/tokens
     p = argparse.ArgumentParser(prog="clipper", description="GTA 6 stream -> shorts pipeline")
     sub = p.add_subparsers(dest="cmd", required=True)
 

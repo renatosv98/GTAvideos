@@ -371,6 +371,8 @@ def _ig_pause(reason: str) -> None:
 def _alarm_ok(msg: str) -> None:
     import json
     import subprocess
+    from .redact import redact
+    msg = redact(msg)
     print(msg)
     subprocess.run(["osascript", "-e", f"display notification {json.dumps(msg, ensure_ascii=False)} "
                                        f"with title \"GTAuploads\" sound name \"Glass\""], check=False)

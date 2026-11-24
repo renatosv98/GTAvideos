@@ -5,6 +5,18 @@ from contextlib import contextmanager
 from typing import Iterator
 
 from .config import DATA
+from .redact import redact
+
+
+class _RedactingConnection(sqlite3.Connection):
+    """Text written to the database (error messages, notes, feedback) never contains a key or token."""
+
+    def execute(self, sql, params=()):
+        if isinstance(params, (tuple, list)):
+            params = [redact(p) for p in params]
+        elif isinstance(params, dict):
+            params = {k: redact(v) for k, v in params.items()}
+        return super().execute(sql, params)
 
 DB_PATH = DATA / "clipper.db"
 
@@ -66,7 +78,7 @@ CREATE TABLE IF NOT EXISTS uploads (
 
 @contextmanager
 def connect() -> Iterator[sqlite3.Connection]:
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, factory=_RedactingConnection)
     conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA)
     cols = {r[1] for r in conn.execute("PRAGMA table_info(clips)")}
