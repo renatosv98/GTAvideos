@@ -146,7 +146,19 @@ def check() -> list[tuple[str, str]]:
     if last is None or last - now < LOW_QUEUE:
         when = last.astimezone().strftime("%a %d %b %H:%M") if last else "now"
         problems.append(("queue-low", f"Posting queue runs out {when}. Process a new stream and approve clips."))
+    # 5. on battery the Mac sleeps when the lid closes (keep-awake only works on power): 24 Nov it slept 19:30-09:08
+    if on_battery():
+        problems.append(("battery", "Mac is on battery: plug it in, or the clipper stops when it sleeps."))
     return problems
+
+
+def on_battery(pmset_output: str | None = None) -> bool:
+    if pmset_output is None:
+        try:
+            pmset_output = subprocess.run(["pmset", "-g", "batt"], capture_output=True, text=True, timeout=10).stdout
+        except (OSError, subprocess.SubprocessError):
+            return False
+    return "Battery Power" in pmset_output.splitlines()[0] if pmset_output else False
 
 
 def notify(problems: list[tuple[str, str]]) -> None:

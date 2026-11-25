@@ -254,3 +254,10 @@ def test_no_secret_is_ever_committed():
     assert not bad, f"secrets found in files that would be committed: {bad}"
     for name in (".env", "secrets/youtube_token.json", "data/clipper.db"):
         assert subprocess.run(["git", "check-ignore", "-q", name], cwd=r.ROOT).returncode == 0, name
+
+
+def test_battery_alert():
+    from clipper import health
+    assert health.on_battery("Now drawing from 'Battery Power'\n -InternalBattery-0 65%; discharging")
+    assert not health.on_battery("Now drawing from 'AC Power'\n -InternalBattery-0 65%; charging")
+    assert not health.on_battery("")
