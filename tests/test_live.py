@@ -194,3 +194,31 @@ def test_follow_prompt_only_at_the_end(tmp_path):
         return sum(1 for i in range(0, len(px), 3) if px[i] > 170 and px[i + 1] < 90 and px[i + 2] < 90) > 5000
     assert not red_at(2.0) and not red_at(8.0)
     assert red_at(11.0)
+
+
+def test_camera_reuse_needs_pixel_proof(tmp_path):
+    """27 Nov token saver: reuse a nearby clip's camera box only if that region still looks the same and clearly
+    more alike than gameplay; otherwise Claude is asked as before."""
+    import json
+    import sqlite3
+    from clipper import compilation
+    from clipper.agents import facecam
+    v = tmp_path / "s.mp4"
+    # "room" in the top-left corner stays the same; the rest is changing "gameplay" (zooming fractal)
+    compilation._ff("-f", "lavfi", "-i", "mandelbrot=s=640x360:rate=10,trim=duration=40", "-f", "lavfi", "-i",
+                    "color=c=0x8a6a4a:size=160x90:rate=10:duration=40", "-filter_complex",
+                    "[1]drawbox=x=40:y=20:w=60:h=50:color=0x203040:t=fill[cam];[0][cam]overlay=0:0:shortest=1",
+                    "-pix_fmt", "yuv420p", str(v))
+    box = {"x": 0.0, "y": 0.0, "w": 0.25, "h": 0.25}
+    conn = sqlite3.connect(":memory:")
+    conn.execute("CREATE TABLE clips (id INTEGER, stream_id INTEGER, start REAL, end REAL, edit_json TEXT)")
+    conn.execute("INSERT INTO clips VALUES (1, 7, 2, 8, ?)", (json.dumps({"facecam": box}),))
+    conn.execute("INSERT INTO clips VALUES (2, 7, 30, 36, NULL)")
+    got = facecam.reuse_nearby(conn, 2, v, 30, 36)
+    assert got and got[0] == box and got[1] == 1
+    # a box that is really gameplay must not be reused
+    conn.execute("UPDATE clips SET edit_json=? WHERE id=1", (json.dumps({"facecam": {**box, "x": 0.6, "y": 0.6}}),))
+    assert facecam.reuse_nearby(conn, 2, v, 30, 36) is None
+    # too far apart in the stream: ask Claude
+    conn.execute("UPDATE clips SET edit_json=?, start=-5000, end=-4990 WHERE id=1", (json.dumps({"facecam": box}),))
+    assert facecam.reuse_nearby(conn, 2, v, 30, 36) is None

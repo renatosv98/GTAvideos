@@ -9,6 +9,7 @@ The APIs we're allowed to use can't edit profiles, so this agent recommends; you
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import tempfile
 from datetime import datetime, timezone
@@ -273,40 +274,72 @@ def stale_text(pack: dict) -> list[str]:
     return hits
 
 
-def package(clip_id: int) -> dict:
-    """Write the title, description and hashtags for each platform before the clip is published."""
-    with db.connect() as conn:
-        c = dict(conn.execute("SELECT c.*, s.creator_id FROM clips c JOIN streams s ON s.id=c.stream_id "
-                              "WHERE c.id=?", (clip_id,)).fetchone())
-        posted_at = conn.execute("SELECT slot_at FROM clips WHERE id=?", (clip_id,)).fetchone()[0]
+def _creator_keys() -> dict[str, str]:
     from ..config import load_creators
-    creator = next(x for x in load_creators() if x.id == c["creator_id"])
+    return {c.id: re.sub(r"\W", "", c.display_name).lower() for c in load_creators()}
+
+
+def _pick_tags(tags: list[str], creator_id: str, g6: bool, n: int) -> list[str]:
+    """Market-brief hashtags for this clip: generic ones + this creator's own; never another creator's, never
+    GTA 6 tags on a non-GTA 6 clip, never #Shorts."""
+    from ..download import GTA6_RE
+    keys = _creator_keys()
+    mine, others = keys.get(creator_id, creator_id), [k for cid, k in keys.items() if cid != creator_id]
+    out = []
+    for t in tags:
+        t = "#" + t.lstrip("#").replace(" ", "")
+        low = t.lower()
+        if low == "#shorts" or any(o and o in low for o in others) or (not g6 and GTA6_RE.search(t)):
+            continue
+        if low not in (x.lower() for x in out):
+            out.append(t)
+    from ..config import load_creators
+    own = next((("#" + re.sub(r"\W", "", c.display_name)) for c in load_creators() if c.id == creator_id), None)
+    if own and not any(mine in t.lower() for t in out):
+        out.append(own)  # the market list may not have every creator yet
+    out.sort(key=lambda t: 0 if mine in t.lower() else 1)  # the creator's own tag first
+    return out[:n]
+
+
+def _undated(text: str) -> str:
+    """Drop sentences with time-relative wording ('quedan 4 días', 'hoy'): posts are read days later."""
+    parts = re.split(r"(?<=[.!?…])\s+|\n+", text or "")
+    keep = [x for x in parts if x and not COUNTDOWN.search(x)]
+    return " ".join(keep).strip()
+
+
+def package(clip_id: int) -> dict:
+    """Title, description and hashtags per platform, built in Python (27 Nov token saver: no Claude call).
+    The words come from the clip's own title and caption, which the selector and QA (Claude) already wrote and
+    checked against the video; hashtags come from the weekly market research."""
+    with db.connect() as conn:
+        c = dict(conn.execute("SELECT c.*, s.creator_id, COALESCE(s.gta6,0) AS g6 FROM clips c "
+                              "JOIN streams s ON s.id=c.stream_id WHERE c.id=?", (clip_id,)).fetchone())
     edit = json.loads(c["edit_json"] or "{}")
-    words = " ".join(w["w"] for w in json.loads(c["words_json"] or "[]"))
-    market = MARKET.read_text() if MARKET.exists() else "(no market research yet)"
-    r = llm.ask_json(SYSTEM + brief("growth"), (
-        f"Package this short for publishing. It posts around {posted_at or 'soon'} (UTC); make sure nothing in the "
-        f"text is out of date by then (no countdowns like 'quedan X días' unless still true).\n\n"
-        f"Creator: {creator.display_name} (credit line is added automatically; still name the creator naturally "
-        f"in the title). Language: {creator.language}.\n"
-        f"Selector's title: {c['title']}\nHook on screen: {edit.get('hook')}\nWhy it was picked: {c['reason']}\n"
-        f"What is said: {words[:2000]}\n\n# Market brief\n{market[:5000]}\n\n"
-        "Write: youtube_title (<=90 chars, creator name + hook, Spanish, no clickbait lies, NO disclaimers like "
-        "'clip no oficial' in titles: disclaimers go in descriptions/captions only), youtube_description "
-        "(1-2 sentences with search keywords), youtube_hashtags (3, first ones show above the title), "
-        "youtube_tags (8-15 search tags), tiktok_caption (1 short line + question/CTA, <=150 chars), "
-        "tiktok_hashtags (3-5), instagram_caption (1-2 lines + CTA), instagram_hashtags (3-6). Hashtags without "
-        "spaces. Never claim to be official. notes: one line on the strategy used."),
-        PACK_SCHEMA, effort="low")
-    if hits := stale_text(r):  # one rewrite without time-relative wording
-        print(f"    #{clip_id} packaging had dated wording ({'; '.join(hits)}); rewriting")
-        r = llm.ask_json(SYSTEM + brief("growth"), (
-            "Rewrite this packaging so NOTHING is time-relative (no 'quedan X días', 'hoy', 'mañana', dates, "
-            "countdowns): it may be read days later. Keep everything else.\n" + json.dumps(r, ensure_ascii=False)),
-            PACK_SCHEMA, effort="low")
-    r["youtube_title"] = __import__("re").sub(r"\s*[\(\[]?\s*clip(s)? no oficial(es)?\s*[\)\]]?", "",
-                                               r["youtube_title"], flags=2).strip()
-    edit["packaging"] = {**r, "written_at": datetime.now(timezone.utc).isoformat(), "dated_wording": stale_text(r)}
+    try:
+        market = json.loads(MARKET.read_text()).get("hashtags") or {}
+    except (OSError, ValueError):
+        market = {}
+    from ..download import GTA6_RE
+    title = re.sub(r"\s*[\(\[]?\s*clip(s)? no oficial(es)?\s*[\)\]]?", "", c["title"] or "", flags=re.I).strip()
+    g6 = bool(c["g6"]) or bool(GTA6_RE.search(f"{title} {c['caption'] or ''}"))
+    caption = _undated(c["caption"] or "") or _undated(title) or title
+    caption = re.sub(r"\s{2,}", " ", re.sub(r"(?<!\w)#\w+", "", caption)).strip()  # hashtags go in their own field
+    short = caption if len(caption) <= 150 else caption[:149].rsplit(" ", 1)[0].rstrip(",;:") + "…"
+    tags = lambda p, n: _pick_tags(market.get(p) or [], c["creator_id"], g6, n)
+    r = {
+        "youtube_title": title[:100],
+        "youtube_description": caption,
+        "youtube_hashtags": tags("youtube", 3),
+        "youtube_tags": [t.lstrip("#") for t in tags("youtube", 10)],
+        "tiktok_caption": short,
+        "tiktok_hashtags": tags("tiktok", 5),
+        "instagram_caption": caption,
+        "instagram_hashtags": tags("instagram", 6),
+        "notes": "built by code from the QA-checked title/caption + market hashtags",
+    }
+    edit["packaging"] = {**r, "written_at": datetime.now(timezone.utc).isoformat(), "dated_wording": stale_text(r),
+                         "by": "python"}
     with db.connect() as conn:
         conn.execute("UPDATE clips SET edit_json=? WHERE id=?", (json.dumps(edit, ensure_ascii=False), clip_id))
     return r

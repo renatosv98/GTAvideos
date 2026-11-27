@@ -169,12 +169,9 @@ def reconcile() -> list[str]:
             notes.append(f"could not refresh YouTube status: {e}")
     platforms = [p for p, c in SETTINGS["platforms"].items() if c.get("enabled")]
     ok = _ok_pairs()
-    from .growth import stale_text
-
-    def needs(c) -> bool:  # no packaging yet, or packaging/title with dated wording ('quedan 7 días', 'hoy'...)
-        pk = json.loads(c["edit_json"] or "{}").get("packaging")
-        return not pk or bool(stale_text({k: v for k, v in pk.items() if k != "dated_wording"})) \
-            or bool(stale_text({"title": c["title"]})) and not pk
+    def needs(c) -> bool:  # no packaging yet. Packaging is built once by code; re-running gives the same result
+        # (re-checking dated wording every cycle re-packaged #124 83 times with Claude until 27 Nov)
+        return not json.loads(c["edit_json"] or "{}").get("packaging")
 
     todo = [c for c in _q("SELECT id, title, edit_json FROM clips WHERE status IN ('approved','published') "
                           "ORDER BY slot_at") if any((c["id"], p) not in ok for p in platforms) and needs(c)]
@@ -386,7 +383,7 @@ def run() -> int:
     return 0
 
 
-def due(hours: float = 12) -> bool:
+def due(hours: float = 24) -> bool:  # daily (was 12 h; 27 Nov token saver)
     try:
         return (datetime.now(timezone.utc) - datetime.fromisoformat(LAST.read_text().strip())
                 ).total_seconds() > hours * 3600

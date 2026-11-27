@@ -261,3 +261,15 @@ def test_battery_alert():
     assert health.on_battery("Now drawing from 'Battery Power'\n -InternalBattery-0 65%; discharging")
     assert not health.on_battery("Now drawing from 'AC Power'\n -InternalBattery-0 65%; charging")
     assert not health.on_battery("")
+
+
+def test_packaging_is_code_not_claude(monkeypatch):
+    """27 Nov token saver: packaging uses no Claude call, keeps only this creator's tags, drops dated sentences."""
+    from clipper import llm
+    from clipper.agents import growth
+    monkeypatch.setattr(llm, "ask_json", lambda *a, **k: (_ for _ in ()).throw(AssertionError("Claude called")))
+    tags = ["#GTA6", "#Rubius", "#IlloJuan", "#Shorts", "#GTAVI", "#AuronPlay"]
+    assert growth._pick_tags(tags, "rubius", True, 5) == ["#Rubius", "#GTA6", "#GTAVI"]
+    assert growth._pick_tags(tags, "rubius", False, 5) == ["#Rubius"]
+    assert growth._pick_tags(["#GTA6", "#ClipsDeTwitch"], "danirep", True, 6)[0] == "#DaniRep"  # always own tag
+    assert growth._undated("Quedan 4 días para GTA 6. Rubius lo flipa con el coche.") == "Rubius lo flipa con el coche."

@@ -69,6 +69,33 @@ def ask_json(system: str, prompt: str, schema: dict, images: list[Path] | None =
 _SECRET_ENV = re.compile(r"KEY|SECRET|TOKEN|PASSWORD|INSTAGRAM|TIKTOK", re.I)
 
 
+def _caller() -> str:
+    """Which agent made the call (first frame outside this module), e.g. 'qa.review'."""
+    import inspect
+    for f in inspect.stack()[2:]:
+        mod = f.frame.f_globals.get("__name__", "")
+        if mod.startswith("clipper") and mod != __name__:
+            return f"{mod.rsplit('.', 1)[-1]}.{f.function}"
+    return "?"
+
+
+def _log_usage(out: dict, model: str, effort: str, images: int) -> None:
+    """One line per Claude call in data/llm_usage.jsonl, so the token cost of each agent is visible."""
+    try:
+        from datetime import datetime, timezone
+        from .config import DATA
+        u = out.get("usage") or {}
+        row = {"at": datetime.now(timezone.utc).isoformat(timespec="seconds"), "agent": _caller(), "model": model,
+               "effort": effort, "images": images, "cost_usd": out.get("total_cost_usd"),
+               "in": u.get("input_tokens"), "cache_read": u.get("cache_read_input_tokens"),
+               "cache_write": u.get("cache_creation_input_tokens"), "out": u.get("output_tokens"),
+               "ok": not out.get("is_error")}
+        with open(DATA / "llm_usage.jsonl", "a") as f:
+            f.write(json.dumps(row) + "\n")
+    except Exception:
+        pass  # logging must never break an agent
+
+
 def _claude_code(system, prompt, schema, images, model, effort, web=False) -> dict:
     with tempfile.TemporaryDirectory(prefix="clipper-llm-") as tmp:
         tmpd = Path(tmp)
@@ -97,6 +124,7 @@ def _claude_code(system, prompt, schema, images, model, effort, web=False) -> di
         out = json.loads(proc.stdout)
     except json.JSONDecodeError:
         raise LLMError(f"Claude Code returned no JSON (exit {proc.returncode}): {(proc.stderr or proc.stdout)[-400:]}")
+    _log_usage(out, model, effort, len(names))
     if out.get("is_error") or out.get("structured_output") is None:
         raise LLMError(f"{out.get('subtype')}: {str(out.get('result'))[:400]}")
     return out["structured_output"]

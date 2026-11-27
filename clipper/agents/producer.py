@@ -31,8 +31,14 @@ def produce(clip_id: int, video: Path, creator: Creator) -> Path:
     edit = json.loads(r["edit_json"] or "{}")
     if "facecam" not in edit:  # streamers move their camera between scenes: find it for this clip
         try:
-            edit["facecam"] = facecam.detect(video, r["start"], r["end"])
-            print(f"    #{clip_id} camera: {edit['facecam'] or 'none (no face panel)'}")
+            with db.connect() as conn:
+                near = facecam.reuse_nearby(conn, clip_id, video, r["start"], r["end"])
+            if near:  # no Claude call: same stream, nearby, and the pixels confirm the camera is still there
+                edit["facecam"] = near[0]
+                print(f"    #{clip_id} camera: reused from #{near[1]} (match {near[2]:.2f})")
+            else:
+                edit["facecam"] = facecam.detect(video, r["start"], r["end"])
+                print(f"    #{clip_id} camera: {edit['facecam'] or 'none (no face panel)'}")
         except Exception as e:  # fall back to the creator's usual position
             print(f"    #{clip_id} camera detection failed ({e}); using creators.yaml position")
             edit["facecam"] = None
